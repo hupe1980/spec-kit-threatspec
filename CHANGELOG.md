@@ -6,26 +6,40 @@ All notable changes to the ThreatSpec extension are documented here. The format 
 
 ### Added
 
-- `speckit.threatspec.model`: create or incrementally update an OTM-compatible `threat-model.yaml` from `spec.md` and `plan.md`; publish `SR-###` security requirements into `spec.md` between managed markers.
-- `speckit.threatspec.check`: deterministic checks C1–C11 (schema, references, coverage, decisions, drift, severity, applicability) with `md`, `json`, and `sarif` output, plus semantic passes.
-- `speckit.threatspec.converge`: evidence-based verification of every `SR-###`, append-only verification history, convergence report, and appended `Security Convergence` tasks.
-- Engine `scripts/python/threatspec.py` with bash and PowerShell wrappers; JSON Schema `schemas/threat-model.schema.json`.
-- Profiles: `stride`, `llm` (OWASP LLM Top 10 2026), `agent` (OWASP Agentic Top 10 2026, MAESTRO layers).
-- Optional lifecycle hooks (`after_specify`, `after_clarify`, `after_plan`, `after_tasks`, `before_implement`, `after_implement`, `before_converge`) and own hook points (`before/after_threatspec_*`).
+**Commands**
+
+- `speckit.threatspec.model`: create or incrementally update an OTM-compatible `threat-model.yaml` from `spec.md` and `plan.md`; publish `SR-###` security requirements into `spec.md` between managed markers. Existing ids, statuses, decisions, and verification history survive; threats that disappear are retired, not deleted.
+- `speckit.threatspec.check`: deterministic checks C1–C12 (schema, dangling references, coverage, decisions, drift, severity, applicability, open questions) with `md`, `json`, and `sarif` output, plus ten semantic passes.
+- `speckit.threatspec.converge`: evidence-based verification of every `SR-###`, append-only verification history, convergence report, and appended `Security Convergence` tasks. `verified` requires an inspectable evidence pointer; re-running does not duplicate tasks.
+
+**Engine**
+
+- `scripts/python/threatspec.py` with bash and PowerShell wrappers; subcommands `paths`, `init`, `validate`, `merge`, `render`, `check`, `coverage`, `converge-scan`, `converge-apply`. PyYAML is the only requirement; `jsonschema` enables full schema validation.
+- JSON Schema `schemas/threat-model.schema.json`, an Open Threat Model superset with `threatspec`, `requirements`, `verification`, and `decisions` keys.
+- `coverage`: technique × surface × threat/disposition and `SR-###` → threats/mitigations/tasks/verification tables.
+- Runs without an agent: exit codes reflect severity, output is CI-ready, and hashes and reported paths are stable across Linux, macOS, and Windows.
+
+**Model semantics**
+
+- Three-state dispositions per technique, plus `needs-clarification` threats that carry `severity: unrated`, stay out of severity counts, and surface as check C12.
+- `threatspec.exclusions` records spec entities deliberately left out of the model, with a mandatory reason, and silences C8 for them.
+- Risk decisions (`accepted`, `transferred`) require owner, rationale, and expiry.
+- Drift detection hashes `spec.md` without the ThreatSpec-managed block, so rendering is never mistaken for a spec change.
+- Tasks link to requirements through `[SR-###]` bracket tags only, so prose ranges cannot inflate coverage.
+
+**Profiles**
+
+- `stride` (STRIDE per element), `llm` (OWASP Top 10 for LLM Applications 2026, MITRE ATLAS), `agent` (OWASP Top 10 for Agentic Applications 2026, MAESTRO layers), each with applicability surfaces and edition-pinned framework mappings.
+
+**Integration**
+
+- Seven optional lifecycle hooks (`after_specify` through `before_converge`) and own hook points (`before/after_threatspec_*`) for other extensions to chain on.
 - Companion preset `threatspec-sdd` (append overrides for `tasks`, `analyze`, `converge`, `checklist`) and workflow `secure-sdd`.
-- Test suite with a golden `rag-assistant` fixture and a `broken` fixture.
-- Fixes from an end-to-end run: coverage no longer lists retired clarification threats; `converge-apply` no longer duplicates convergence tasks on re-run; task linking requires `[SR-###]` bracket tags so prose ranges cannot inflate coverage; `threatspec.exclusions` records deliberately omitted spec entities and silences C8.
-- Windows/CRLF correctness: source hashes are computed on universal-newline text so a CRLF checkout is not reported as drift, and every reported path (evidence, SARIF URIs) is POSIX-style. `.gitattributes` normalises checkouts to LF.
-- `check --strict` now reports `Enforcement: strict` in the Markdown, JSON, SARIF-adjacent, and persisted outputs, matching the exit code it enforces.
-- `catalog.json` at the repository root: an installable self-hosted catalog with a tag-pinned download URL; `docs/publishing.md` maps the Spec Kit publishing guide and submission template to this repository.
-- `examples/rag-assistant`: a complete first-pass model produced by the model command from a bare spec, with rendered view, check report, and coverage table, kept valid by tests.
 - Composite GitHub Action (`action.yml`) that runs the check and uploads SARIF to code scanning.
-- GitHub workflows: CI (tests on Linux and Windows, manifest validation, scratch-project install) and Release (tag → version check → ZIP asset → GitHub Release).
-- Phase-aware C6 severity (LOW before implementation starts, HIGH only when all tasks are done and nothing verifies the requirement).
-- `converge-apply --only` for partial convergence runs; un-judged requirements keep their last recorded verdict.
-- Needs-clarification threats get `severity: unrated`, are excluded from severity counts and C3/C10, and surface as check C12.
-- `spec.md` is hashed without the managed SR block, so rendering never registers as drift; unhashed sources block convergence.
-- YAML parse errors are reported with a quoting hint instead of a traceback.
-- `coverage` subcommand: technique × surface × threat/disposition and SR → threats/mitigations/tasks/verification tables (md or json).
-- Pre-implementation C6 findings are aggregated into one line.
-- Check prompt: semantic passes S9 (dispositions) and S10 (wording/attribution), explicit severity→priority mapping, constitution-template fallback, unverified rule exempts quoted test payloads.
+- `catalog.json` at the repository root: an installable self-hosted catalog with a tag-pinned download URL.
+
+**Documentation and tests**
+
+- `docs/`: methodology, threat-model format reference, workflow integration, design and roadmap, publishing checklist, and ThreatSpec's own threat model.
+- `examples/rag-assistant`: a complete first-pass model produced by the model command from a bare spec, with rendered view, check report, and coverage table, kept valid by tests.
+- Test suite covering the manifest, schema, checks, merge, render, convergence, and the shipped example; CI on Linux and Windows across Python 3.11 and 3.13.

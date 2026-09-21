@@ -51,10 +51,18 @@ jobs:
           # Serve the built archive locally and install it exactly as a user would from a URL
           (cd "$GITHUB_WORKSPACE/dist" && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
           sleep 1
-          yes | specify extension add threatspec --from "http://127.0.0.1:8765/threatspec-${GITHUB_REF_NAME}.zip"
+          # A single 'y' answers the untrusted-URL prompt. `yes |` would keep writing after the
+          # CLI exits, take SIGPIPE, and fail the step under `pipefail` even on a successful install.
+          printf 'y\n' | specify extension add threatspec --from "http://127.0.0.1:8765/threatspec-${GITHUB_REF_NAME}.zip"
           specify extension list
           test -d .specify/extensions/threatspec/commands
-          test ! -e .specify/extensions/threatspec/tests   # .extensionignore honoured
+          test -f .specify/extensions/threatspec/scripts/python/threatspec.py
+          test ! -e .specify/extensions/threatspec/tests      # .extensionignore honoured
+          test ! -e .specify/extensions/threatspec/examples
+          test ! -e .specify/extensions/threatspec/action.yml
+          # The installed engine must actually run
+          .specify/extensions/threatspec/scripts/bash/threatspec.sh validate \
+            "$GITHUB_WORKSPACE/examples/rag-assistant/specs/001-rag-assistant/threat-model.yaml"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
