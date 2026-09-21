@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-09-21T00:00:00Z",
+  "catalog_url": "https://raw.githubusercontent.com/hupe1980/spec-kit-threatspec/main/catalog.json",
+  "extensions": {
+    "threatspec": {
+      "name": "ThreatSpec — Threat Modeling & Security Traceability",
+      "id": "threatspec",
+      "description": "STRIDE and AI/ML threat modeling with threat-to-test traceability and security convergence",
+      "author": "hupe1980",
+      "version": "0.1.0",
+      "download_url": "https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.1.0.zip",
+      "repository": "https://github.com/hupe1980/spec-kit-threatspec",
+      "homepage": "https://github.com/hupe1980/spec-kit-threatspec",
+      "documentation": "https://github.com/hupe1980/spec-kit-threatspec/blob/main/README.md",
+      "changelog": "https://github.com/hupe1980/spec-kit-threatspec/blob/main/CHANGELOG.md",
+      "license": "MIT",
+      "category": "process",
+      "effect": "read-write",
+      "requires": {
+        "speckit_version": ">=1.0.0"
+      },
+      "provides": {
+        "commands": 3,
+        "hooks": 7
+      },
+      "tags": [
+        "security",
+        "threat-modeling",
+        "llm",
+        "agentic",
+        "traceability"
+      ],
+      "verified": false,
+      "created_at": "2026-09-21T00:00:00Z",
+      "updated_at": "2026-09-21T00:00:00Z"
+    }
+  }
+}

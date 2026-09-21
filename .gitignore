@@ -1,0 +1,8 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Local spec-kit config overrides
+*-config.local.yml

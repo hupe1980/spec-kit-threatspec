@@ -1,0 +1,144 @@
+# ThreatSpec profile: STRIDE (foundation)
+# Techniques carry stable ids. `applies_to` lists element kinds; `surfaces` lists
+# applicability surfaces that must be present for the technique to be evaluated
+# (empty = always applicable). `mitigations` are standard patterns the model
+# command may propose; they are suggestions, never auto-inserted.
+
+profile:
+  id: stride
+  name: STRIDE per element
+  version: "0.1"
+  foundation: "Shostack, Threat Modeling: Designing for Security (2014); Microsoft STRIDE"
+
+element_kinds: [actor, component, dataflow, datastore, trust-boundary]
+
+asset_types:
+  - { id: credential, description: "Passwords, tokens, keys, session identifiers" }
+  - { id: pii, description: "Personal data of natural persons" }
+  - { id: business-data, description: "Records the business depends on" }
+  - { id: configuration, description: "Runtime configuration and feature flags" }
+  - { id: source-code, description: "Application and infrastructure code" }
+  - { id: log, description: "Audit and operational logs" }
+
+surfaces:
+  - { id: authentication, description: "The system authenticates principals" }
+  - { id: authorization, description: "The system enforces per-principal permissions" }
+  - { id: persistent-store, description: "The system writes to a durable store" }
+  - { id: external-input, description: "Untrusted parties supply input" }
+  - { id: network-boundary, description: "A data flow crosses a trust zone" }
+  - { id: audit-relevant, description: "Actions must be attributable after the fact" }
+  - { id: shared-tenant, description: "Multiple tenants share infrastructure" }
+
+techniques:
+  - id: credential-theft
+    name: Credential theft or replay
+    category: Spoofing
+    applies_to: [actor, dataflow]
+    surfaces: [authentication]
+    cwes: [CWE-287, CWE-294]
+    mitigations: [mfa, short-lived-tokens, tls-everywhere]
+  - id: identity-spoofing
+    name: Impersonation of a principal or service
+    category: Spoofing
+    applies_to: [actor, component]
+    surfaces: [authentication, network-boundary]
+    cwes: [CWE-290]
+    mitigations: [mutual-tls, signed-requests]
+  - id: data-tampering-in-transit
+    name: Modification of data in transit
+    category: Tampering
+    applies_to: [dataflow]
+    surfaces: [network-boundary]
+    cwes: [CWE-319]
+    mitigations: [tls-everywhere, message-integrity]
+  - id: data-tampering-at-rest
+    name: Unauthorized modification of stored data
+    category: Tampering
+    applies_to: [datastore, component]
+    surfaces: [persistent-store]
+    cwes: [CWE-284]
+    mitigations: [least-privilege-storage, integrity-checks]
+  - id: injection
+    name: Injection through untrusted input (SQL, command, template, path)
+    category: Tampering
+    applies_to: [component, dataflow]
+    surfaces: [external-input]
+    cwes: [CWE-74, CWE-89, CWE-78]
+    mitigations: [input-validation, parameterized-queries, output-encoding]
+  - id: missing-audit-trail
+    name: Actions cannot be attributed or reconstructed
+    category: Repudiation
+    applies_to: [component, datastore]
+    surfaces: [audit-relevant]
+    cwes: [CWE-778]
+    mitigations: [tamper-evident-logging, request-ids]
+  - id: sensitive-data-exposure
+    name: Disclosure of sensitive data to unauthorized parties
+    category: Information Disclosure
+    applies_to: [dataflow, datastore, component]
+    surfaces: []
+    cwes: [CWE-200, CWE-311, CWE-532]
+    mitigations: [encryption-at-rest, tls-everywhere, data-minimization, log-redaction]
+  - id: cross-tenant-leak
+    name: Data leaks between tenants
+    category: Information Disclosure
+    applies_to: [datastore, component]
+    surfaces: [shared-tenant]
+    cwes: [CWE-639]
+    mitigations: [tenant-scoped-queries, row-level-security]
+  - id: resource-exhaustion
+    name: Resource exhaustion by unbounded requests or payloads
+    category: Denial of Service
+    applies_to: [component, dataflow]
+    surfaces: [external-input]
+    cwes: [CWE-400, CWE-770]
+    mitigations: [rate-limiting, payload-limits, timeouts]
+  - id: broken-access-control
+    name: Missing or bypassable authorization check
+    category: Elevation of Privilege
+    applies_to: [component]
+    surfaces: [authorization]
+    cwes: [CWE-862, CWE-863, CWE-284]
+    mitigations: [central-authorization, deny-by-default]
+  - id: privilege-escalation-via-config
+    name: Privilege escalation through writable configuration or secrets
+    category: Elevation of Privilege
+    applies_to: [component, datastore]
+    surfaces: [persistent-store]
+    cwes: [CWE-732, CWE-522]
+    mitigations: [secrets-manager, immutable-config]
+
+mitigation_patterns:
+  - { id: mfa, name: Multi-factor authentication, kind: preventive }
+  - { id: short-lived-tokens, name: Short-lived, audience-bound tokens, kind: preventive }
+  - { id: tls-everywhere, name: TLS on every network hop, kind: preventive }
+  - { id: mutual-tls, name: Mutual TLS between services, kind: preventive }
+  - { id: signed-requests, name: Signed and timestamped requests, kind: preventive }
+  - { id: message-integrity, name: Message authentication codes or signatures, kind: preventive }
+  - { id: least-privilege-storage, name: Least-privilege storage credentials, kind: preventive }
+  - { id: integrity-checks, name: Integrity verification of stored data, kind: detective }
+  - { id: input-validation, name: Allowlist input validation at the boundary, kind: preventive }
+  - { id: parameterized-queries, name: Parameterized queries and prepared statements, kind: preventive }
+  - { id: output-encoding, name: Context-aware output encoding, kind: preventive }
+  - { id: tamper-evident-logging, name: Append-only, tamper-evident audit log, kind: detective }
+  - { id: request-ids, name: Correlation ids on every request, kind: detective }
+  - { id: encryption-at-rest, name: Encryption at rest with managed keys, kind: preventive }
+  - { id: data-minimization, name: Collect and retain only necessary data, kind: preventive }
+  - { id: log-redaction, name: Redact secrets and PII from logs, kind: preventive }
+  - { id: tenant-scoped-queries, name: Tenant id enforced on every query, kind: preventive }
+  - { id: row-level-security, name: Row-level security in the datastore, kind: preventive }
+  - { id: rate-limiting, name: Per-principal rate limiting, kind: preventive }
+  - { id: payload-limits, name: Payload size and depth limits, kind: preventive }
+  - { id: timeouts, name: Timeouts and circuit breakers, kind: corrective }
+  - { id: central-authorization, name: Central authorization middleware, kind: preventive }
+  - { id: deny-by-default, name: Deny-by-default policy, kind: preventive }
+  - { id: secrets-manager, name: Secrets in a managed vault, never in config, kind: preventive }
+  - { id: immutable-config, name: Immutable, reviewed configuration, kind: preventive }
+
+severity_matrix:
+  # likelihood/impact levels from OTM 0–100: low < 34, medium < 67, high ≥ 67
+  levels: { low: 0, medium: 34, high: 67 }
+  matrix:
+    high:   { high: critical, medium: high,   low: medium }
+    medium: { high: high,     medium: medium, low: low }
+    low:    { high: medium,   medium: low,    low: low }

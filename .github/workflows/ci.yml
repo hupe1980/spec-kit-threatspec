@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Run tests
+        run: uv run --python ${{ matrix.python }} --with pytest --with pyyaml --with jsonschema pytest -q -p no:cacheprovider
+      - name: Engine smoke (bash wrapper)
+        if: runner.os != 'Windows'
+        run: |
+          scripts/bash/threatspec.sh validate tests/fixtures/rag-assistant/specs/007-rag-assistant/threat-model.yaml
+          scripts/bash/threatspec.sh --repo tests/fixtures/rag-assistant --feature-dir specs/007-rag-assistant check --format sarif --output /tmp/threatspec.sarif || test $? -le 2
+      - name: Engine smoke (PowerShell wrapper)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/powershell/threatspec.ps1 validate tests/fixtures/rag-assistant/specs/007-rag-assistant/threat-model.yaml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install the Spec Kit CLI
+        run: |
+          uv venv /tmp/speckit
+          uv pip install --python /tmp/speckit/bin/python git+https://github.com/github/spec-kit.git
+          echo "/tmp/speckit/bin" >> "$GITHUB_PATH"
+      - name: Validate extension manifest with the Spec Kit CLI
+        run: |
+          /tmp/speckit/bin/python - <<'EOF'
+          from pathlib import Path
+          from specify_cli.extensions import ExtensionManifest
+          m = ExtensionManifest(Path("extension.yml"))
+          assert m.id == "threatspec" and len(m.commands) == 3, (m.id, len(m.commands))
+          print("manifest ok:", m.id, m.version, "warnings:", getattr(m, "warnings", []))
+          EOF
+      - name: Install into a scratch project
+        run: |
+          mkdir -p /tmp/scratch && cd /tmp/scratch
+          specify init . --integration claude --non-interactive --ignore-agent-tools
+          specify extension add --dev "$GITHUB_WORKSPACE"
+          specify extension list
+          test -f .claude/skills/speckit-threatspec-model/SKILL.md || test -f .claude/commands/speckit.threatspec.model.md
+          specify preset add --dev "$GITHUB_WORKSPACE/preset/threatspec-sdd"
+          specify workflow add --dev "$GITHUB_WORKSPACE/workflow/secure-sdd"

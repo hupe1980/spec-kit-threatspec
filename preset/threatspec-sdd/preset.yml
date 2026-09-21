@@ -1,0 +1,45 @@
+schema_version: "1.0"
+
+preset:
+  id: "threatspec-sdd"
+  name: "ThreatSpec SDD companion"
+  version: "0.1.0"
+  description: "Appends SR-### awareness to the core tasks, analyze, converge, and checklist commands so security requirements are inventoried and tagged natively"
+  author: "hupe1980"
+  repository: "https://github.com/hupe1980/spec-kit-threatspec"
+  license: "MIT"
+
+requires:
+  speckit_version: ">=1.0.0"
+
+provides:
+  templates:
+    - type: "command"
+      name: "speckit.tasks"
+      file: "commands/speckit.tasks.md"
+      description: "Tag tasks with [SR-###] for every security requirement"
+      replaces: "speckit.tasks"
+      strategy: "append"
+    - type: "command"
+      name: "speckit.analyze"
+      file: "commands/speckit.analyze.md"
+      description: "Inventory SR-### in the coverage analysis"
+      replaces: "speckit.analyze"
+      strategy: "append"
+    - type: "command"
+      name: "speckit.converge"
+      file: "commands/speckit.converge.md"
+      description: "Inventory SR-### and defer evidence judgment to ThreatSpec converge"
+      replaces: "speckit.converge"
+      strategy: "append"
+    - type: "command"
+      name: "speckit.checklist"
+      file: "commands/speckit.checklist.md"
+      description: "Offer a security checklist built from SR acceptance criteria"
+      replaces: "speckit.checklist"
+      strategy: "append"
+
+tags:
+  - "security"
+  - "threatspec"
+  - "traceability"

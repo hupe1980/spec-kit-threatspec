@@ -1,0 +1,42 @@
+# ThreatSpec configuration
+# Copy to .specify/extensions/threatspec/threatspec-config.yml and adjust.
+# Local overrides: threatspec-config.local.yml (gitignored).
+# Environment overrides: SPECKIT_THREATSPEC_<SECTION>_<KEY>, e.g. SPECKIT_THREATSPEC_ENFORCEMENT=strict
+
+# Threat catalogs to apply. Available in v0.1: stride, llm, agent.
+profiles:
+  - stride
+  - llm
+  - agent
+
+# warn   → check/converge report findings and continue
+# strict → CRITICAL findings instruct the agent to stop before /speckit.implement
+enforcement: warn
+
+severity:
+  # default: 3×3 likelihood × impact with a critical tier (high × high)
+  matrix: default
+  # Severities that block convergence while any matching threat is open
+  block_on: [critical]
+
+risk_acceptance:
+  require_owner: true
+  max_duration_days: 180
+
+model:
+  # Project-level baseline inherited by every feature model (shared trust zones, assets, actors, decisions)
+  baseline: .specify/memory/threat-model.yaml
+  # Publish SR-### requirements into spec.md between <!-- threatspec:begin --> / <!-- threatspec:end -->
+  write_requirements_to_spec: true
+  render_markdown: true
+  diagram: mermaid          # mermaid | none
+
+verification:
+  # Optional evidence runner executed by converge (empty = locate evidence only)
+  test_command: ""
+  # Scanner outputs that converge may cite as evidence (never as judgment)
+  scanners: []
+  # How tests reference requirements (substring searched in test files)
+  evidence_markers: ["SR-"]
+  # Directories searched for evidence
+  test_dirs: [tests, test, spec, __tests__]

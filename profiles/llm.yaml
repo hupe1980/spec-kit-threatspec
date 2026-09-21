@@ -1,0 +1,150 @@
+# ThreatSpec profile: LLM applications
+# Mapped to OWASP Top 10 for LLM Applications 2026 (published 2026-08-04).
+# Mapping key: owasp-llm-2026. Techniques complement STRIDE categories.
+
+profile:
+  id: llm
+  name: LLM application threats
+  version: "0.1"
+  foundation: "OWASP Top 10 for LLM Applications 2026; MITRE ATLAS"
+  mapping_keys: [owasp-llm-2026, mitre-atlas]
+
+asset_types:
+  - { id: prompt, description: "System or developer prompts" }
+  - { id: model, description: "A model or its weights, hosted or third-party" }
+  - { id: training-data, description: "Data used to train or fine-tune" }
+  - { id: evaluation-data, description: "Data used to evaluate model quality or safety" }
+  - { id: embedding, description: "Vector embeddings" }
+  - { id: rag-corpus, description: "Documents retrieved into context" }
+  - { id: vector-store, description: "Index holding embeddings" }
+  - { id: inference-endpoint, description: "API serving model completions" }
+  - { id: context, description: "Hidden context: retrieved documents, memory, tool responses, user profile" }
+  - { id: ai-output, description: "Model-generated artifacts consumed downstream" }
+
+surfaces:
+  - { id: llm-inference, description: "The system calls a language model" }
+  - { id: untrusted-content-to-model, description: "Content from untrusted sources reaches the model input (documents, web, email, tool responses)" }
+  - { id: retrieval-path, description: "Retrieval-augmented generation or embedding lookup" }
+  - { id: persistent-model-input, description: "User or external input is written to a store that later feeds model input (memory, corpus, index)" }
+  - { id: output-to-sink, description: "Model output flows into a shell, SQL, path, template, HTML, or another executable sink" }
+  - { id: model-supply-chain, description: "Models, adapters, or datasets are downloaded or pinned from external sources" }
+  - { id: cost-bearing-inference, description: "Inference incurs metered cost or scarce capacity" }
+  - { id: user-facing-generation, description: "Model text is shown to people as fact or advice" }
+
+techniques:
+  - id: prompt-injection-direct
+    name: Direct prompt injection by the user
+    category: Tampering
+    applies_to: [dataflow, component]
+    surfaces: [llm-inference]
+    mappings: { owasp-llm-2026: [LLM01], mitre-atlas: [AML.T0051.000] }
+    mitigations: [instruction-data-separation, least-privilege-tools, output-policy-enforcement]
+  - id: prompt-injection-indirect
+    name: Indirect prompt injection via retrieved or fetched content
+    category: Tampering
+    applies_to: [dataflow]
+    surfaces: [untrusted-content-to-model]
+    mappings: { owasp-llm-2026: [LLM01, LLM08], mitre-atlas: [AML.T0051.001] }
+    mitigations: [instruction-data-separation, content-provenance-tagging, tool-confirmation]
+  - id: sensitive-information-disclosure
+    name: Model reveals secrets, PII, or proprietary data
+    category: Information Disclosure
+    applies_to: [component, dataflow]
+    surfaces: [llm-inference]
+    mappings: { owasp-llm-2026: [LLM02], mitre-atlas: [AML.T0057] }
+    mitigations: [context-minimization, output-redaction, data-minimization]
+  - id: excessive-agency
+    name: Model can trigger actions beyond what the task requires
+    category: Elevation of Privilege
+    applies_to: [component]
+    surfaces: [llm-inference]
+    mappings: { owasp-llm-2026: [LLM03] }
+    mitigations: [least-privilege-tools, tool-confirmation, scoped-credentials]
+  - id: model-supply-chain
+    name: Compromised or unpinned model, adapter, or dataset
+    category: Tampering
+    applies_to: [component]
+    surfaces: [model-supply-chain]
+    mappings: { owasp-llm-2026: [LLM04], mitre-atlas: [AML.T0010] }
+    mitigations: [model-pinning, artifact-signing, sbom-for-models]
+  - id: training-data-poisoning
+    name: Poisoned training, fine-tuning, or evaluation data
+    category: Tampering
+    applies_to: [datastore, dataflow]
+    surfaces: [persistent-model-input]
+    mappings: { owasp-llm-2026: [LLM05], mitre-atlas: [AML.T0020] }
+    mitigations: [data-provenance, data-validation, held-out-evaluation]
+  - id: unbounded-consumption
+    name: Unbounded inference cost, tokens, recursion, or fan-out
+    category: Denial of Service
+    applies_to: [component, dataflow]
+    surfaces: [cost-bearing-inference]
+    mappings: { owasp-llm-2026: [LLM06], mitre-atlas: [AML.T0034] }
+    mitigations: [token-budgets, rate-limiting, recursion-caps, cost-alerts]
+  - id: misinformation
+    name: Fabricated or wrong output acted on without verification
+    category: Tampering
+    applies_to: [component]
+    surfaces: [user-facing-generation]
+    mappings: { owasp-llm-2026: [LLM07] }
+    mitigations: [grounding-citations, human-review-for-high-impact, confidence-signaling]
+  - id: hidden-context-exposure
+    name: Hidden context (system prompt, retrieved docs, memory, tool responses, user data) leaks or is manipulated
+    category: Information Disclosure
+    applies_to: [component, dataflow]
+    surfaces: [llm-inference]
+    mappings: { owasp-llm-2026: [LLM08] }
+    mitigations: [context-minimization, no-secrets-in-prompts, output-redaction]
+  - id: vector-embedding-weakness
+    name: Vector store or embedding weaknesses (poisoning, inversion, cross-tenant retrieval)
+    category: Information Disclosure
+    applies_to: [datastore, dataflow]
+    surfaces: [retrieval-path]
+    mappings: { owasp-llm-2026: [LLM09], mitre-atlas: [AML.T0070] }
+    mitigations: [tenant-scoped-retrieval, corpus-validation, embedding-access-control]
+  - id: improper-output-handling
+    name: Model output executed or rendered without validation
+    category: Tampering
+    applies_to: [dataflow]
+    surfaces: [output-to-sink]
+    mappings: { owasp-llm-2026: [LLM10] }
+    mitigations: [output-validation, output-encoding, sandboxed-execution]
+  - id: model-extraction
+    name: Model or prompt extraction through repeated queries
+    category: Information Disclosure
+    applies_to: [component]
+    surfaces: [llm-inference]
+    mappings: { mitre-atlas: [AML.T0024] }
+    mitigations: [rate-limiting, query-monitoring]
+
+mitigation_patterns:
+  - { id: instruction-data-separation, name: Delimit untrusted content as data; instructions never come from content, kind: preventive }
+  - { id: content-provenance-tagging, name: Tag every context chunk with its source and trust level, kind: preventive }
+  - { id: tool-confirmation, name: Human or policy confirmation before high-impact tool calls, kind: preventive }
+  - { id: least-privilege-tools, name: Tools scoped to the minimum capability and data, kind: preventive }
+  - { id: scoped-credentials, name: Per-tool, per-user short-lived credentials, kind: preventive }
+  - { id: output-policy-enforcement, name: Policy engine validates tool calls and outputs, kind: preventive }
+  - { id: context-minimization, name: Only necessary context enters the prompt, kind: preventive }
+  - { id: output-redaction, name: Redact secrets and PII from model output, kind: preventive }
+  - { id: data-minimization, name: Collect and retain only necessary data, kind: preventive }
+  - { id: no-secrets-in-prompts, name: Secrets never placed in prompts or context, kind: preventive }
+  - { id: model-pinning, name: Pin model versions and hashes, kind: preventive }
+  - { id: artifact-signing, name: Verify signatures of models and adapters, kind: preventive }
+  - { id: sbom-for-models, name: Inventory models, datasets, adapters with provenance, kind: detective }
+  - { id: data-provenance, name: Record provenance for every training record, kind: detective }
+  - { id: data-validation, name: Validate and filter training and corpus data, kind: preventive }
+  - { id: held-out-evaluation, name: Held-out evaluation to detect poisoning, kind: detective }
+  - { id: token-budgets, name: Per-request and per-user token budgets, kind: preventive }
+  - { id: rate-limiting, name: Per-principal rate limiting, kind: preventive }
+  - { id: recursion-caps, name: Caps on agent loops and fan-out, kind: preventive }
+  - { id: cost-alerts, name: Cost anomaly alerts, kind: detective }
+  - { id: grounding-citations, name: Answers cite retrieved sources, kind: preventive }
+  - { id: human-review-for-high-impact, name: Human review before high-impact outputs are acted on, kind: preventive }
+  - { id: confidence-signaling, name: Surface uncertainty to the user, kind: preventive }
+  - { id: tenant-scoped-retrieval, name: Retrieval filtered by tenant and permission, kind: preventive }
+  - { id: corpus-validation, name: Validate and moderate corpus ingestion, kind: preventive }
+  - { id: embedding-access-control, name: Access control on the vector store, kind: preventive }
+  - { id: output-validation, name: Validate model output against a schema before use, kind: preventive }
+  - { id: output-encoding, name: Context-aware output encoding, kind: preventive }
+  - { id: sandboxed-execution, name: Execute generated code only in a sandbox, kind: preventive }
+  - { id: query-monitoring, name: Detect extraction-like query patterns, kind: detective }

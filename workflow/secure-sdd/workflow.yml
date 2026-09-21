@@ -1,0 +1,87 @@
+schema_version: "1.0"
+workflow:
+  id: "secure-sdd"
+  name: "Secure SDD Cycle"
+  version: "0.1.0"
+  author: "hupe1980"
+  description: "specify → threat model → plan → threat model (plan pass) → tasks → security check → implement → security converge → converge, with review gates"
+
+requires:
+  speckit_version: ">=1.0.0"
+  integrations:
+    any: ["claude", "copilot", "gemini", "cursor", "opencode"]
+
+inputs:
+  spec:
+    type: string
+    required: true
+    prompt: "Describe what you want to build"
+  integration:
+    type: string
+    default: "auto"
+    prompt: "Integration to use ('auto' uses the project's initialized integration)"
+
+steps:
+  - id: specify
+    command: speckit.specify
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"
+
+  - id: model
+    command: speckit.threatspec.model
+    integration: "{{ inputs.integration }}"
+
+  - id: review-threat-model
+    type: gate
+    message: "Review threat-model.md and the Security Requirements block in spec.md before planning."
+    options: [approve, reject]
+    on_reject: abort
+
+  - id: plan
+    command: speckit.plan
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"
+
+  - id: model-plan-pass
+    command: speckit.threatspec.model
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "--from-plan"
+
+  - id: review-plan
+    type: gate
+    message: "Review the plan and the refined threat model before generating tasks."
+    options: [approve, reject]
+    on_reject: abort
+
+  - id: tasks
+    command: speckit.tasks
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"
+
+  - id: check
+    command: speckit.threatspec.check
+    integration: "{{ inputs.integration }}"
+
+  - id: review-check
+    type: gate
+    message: "Security gap check complete. Resolve CRITICAL findings before implementing. Proceed?"
+    options: [approve, reject]
+    on_reject: abort
+
+  - id: implement
+    command: speckit.implement
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"
+
+  - id: security-converge
+    command: speckit.threatspec.converge
+    integration: "{{ inputs.integration }}"
+
+  - id: converge
+    command: speckit.converge
+    integration: "{{ inputs.integration }}"

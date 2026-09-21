@@ -1,0 +1,49 @@
+otmVersion: "0.2.0"
+project:
+  id: broken
+  name: Broken model
+
+threatspec:
+  version: "0.1"
+  profiles: [stride]
+  surfaces: [external-input]
+  dispositions:
+    - technique: injection
+      disposition: not-applicable
+      reason: "claimed absent although external-input is present"
+
+assets:
+  - id: asset.data
+    name: Data
+
+threats:
+  - id: threat.no-mitigation
+    name: Threat without any mitigation or decision
+    categories: [Tampering]
+    risk: { likelihood: 80, impact: 80 }
+    attributes:
+      severity: low
+      status: open
+  - id: threat.dangling
+    name: Threat referencing a missing asset
+    categories: [Spoofing]
+    risk: { likelihood: 10, impact: 10 }
+    attributes:
+      assets: [asset.missing]
+      status: open
+
+mitigations:
+  - id: mitigation.orphan
+    name: Mitigation with no requirement
+    attributes:
+      threats: [threat.dangling]
+
+requirements: []
+verification: []
+decisions:
+  - id: decision.expired
+    threat: threat.dangling
+    status: accepted
+    owner: "@someone"
+    rationale: old
+    expires: 2020-01-01

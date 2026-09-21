@@ -1,0 +1,73 @@
+name: Release
+
+# Tag `vX.Y.Z` → validate that extension.yml carries the same version, run the tests,
+# build threatspec-vX.Y.Z.zip (installable with `specify extension add threatspec --from <asset url>`),
+# and publish a GitHub Release with generated notes.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Check that the tag matches extension.yml
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest="$(uv run --with pyyaml python -c 'import yaml;print(yaml.safe_load(open("extension.yml"))["extension"]["version"])')"
+          echo "tag=$tag manifest=$manifest"
+          test "$tag" = "$manifest" || { echo "::error::extension.yml version ($manifest) does not match tag ($tag)"; exit 1; }
+
+      - name: Run tests
+        run: uv run --with pytest --with pyyaml --with jsonschema pytest -q -p no:cacheprovider
+
+      - name: Build extension archive
+        run: |
+          set -euo pipefail
+          out="threatspec-${GITHUB_REF_NAME}"
+          mkdir -p "dist/$out"
+          # Ship exactly what `specify extension add` would keep: everything except .extensionignore matches.
+          rsync -a --exclude-from=.extensionignore --exclude=.git --exclude=dist ./ "dist/$out/"
+          (cd dist && zip -qr "$out.zip" "$out")
+          ls -la dist
+          unzip -l "dist/$out.zip" | head -40
+          echo "SHA256=$(sha256sum "dist/$out.zip" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      - name: Smoke-install the archive with the Spec Kit CLI
+        run: |
+          set -euo pipefail
+          uv venv /tmp/speckit
+          uv pip install --python /tmp/speckit/bin/python git+https://github.com/github/spec-kit.git
+          export PATH="/tmp/speckit/bin:$PATH"
+          mkdir -p /tmp/scratch && cd /tmp/scratch
+          specify init . --integration claude --non-interactive --ignore-agent-tools
+          # Serve the built archive locally and install it exactly as a user would from a URL
+          (cd "$GITHUB_WORKSPACE/dist" && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
+          sleep 1
+          yes | specify extension add threatspec --from "http://127.0.0.1:8765/threatspec-${GITHUB_REF_NAME}.zip"
+          specify extension list
+          test -d .specify/extensions/threatspec/commands
+          test ! -e .specify/extensions/threatspec/tests   # .extensionignore honoured
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/threatspec-${{ github.ref_name }}.zip
+          generate_release_notes: true
+          body: |
+            Install with:
+
+            ```bash
+            specify extension add threatspec --from https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/threatspec-${{ github.ref_name }}.zip
+            # or the source archive listed in catalog.json
+            specify extension add threatspec --from https://github.com/${{ github.repository }}/archive/refs/tags/${{ github.ref_name }}.zip
+            ```
+
+            Release asset SHA-256: `${{ env.SHA256 }}`

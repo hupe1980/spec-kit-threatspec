@@ -1,0 +1,64 @@
+# ThreatSpec threat model — canonical, machine-readable, OTM-compatible.
+# Generated and maintained by /speckit.threatspec.model; validated by schemas/threat-model.schema.json.
+# Human-owned fields survive regeneration: threats[].attributes.{status,severity_override,notes},
+# mitigations[].attributes.status, requirements[].tasks, verification[], decisions[].
+
+otmVersion: "0.2.0"
+project:
+  id: "[###-feature-name]"
+  name: "[Feature name]"
+
+threatspec:
+  version: "0.1"
+  generated: "[ISO-8601 timestamp]"
+  profiles: [stride]          # stride | llm | agent (see profiles/)
+  extends: null               # optional: ../../.specify/memory/threat-model.yaml
+  sources: []                 # [{path: spec.md, sha256: ...}] filled by the engine
+  actors: []                  # [{id: actor.end-user, name: End user, trust: untrusted}]
+  surfaces: []                # applicability surfaces present (profile ids), e.g. [external-input, llm-inference]
+  dispositions: []            # [{technique: model-extraction, disposition: not-applicable, reason: "..."}]
+
+trustZones: []                # [{id: tz.internet, name: Internet, risk: {trustRating: 1}}]
+assets: []                    # [{id: asset.x, name: X, risk: {confidentiality: 0-100, integrity: 0-100, availability: 0-100}, attributes: {type, classification, source}}]
+components: []                # [{id: component.x, name: X, type: service, parent: {trustZone: tz.internal}, attributes: {source}}]
+dataflows: []                 # [{id: flow.x, name: X, source: component.a, destination: component.b, assets: [asset.x], attributes: {crosses: [tz.internet]}}]
+
+threats: []
+# - id: threat.example
+#   name: Short, specific statement of what goes wrong
+#   categories: [Tampering]                     # STRIDE (or LINDDUN) category
+#   cwes: [CWE-74]
+#   risk: {likelihood: 0-100, impact: 0-100}    # severity is derived from the matrix
+#   attributes:
+#     technique: injection                      # profile technique id
+#     profile: stride
+#     mappings: {owasp-llm-2026: [LLM01]}       # edition-pinned framework ids
+#     disposition: threat                       # threat | needs-clarification
+#     actor: actor.end-user
+#     assets: [asset.x]
+#     elements: [flow.x]
+#     source: "spec.md#FR-004"                  # evidence in the spec or plan
+#     status: open                              # open | mitigated | accepted | transferred | retired
+
+mitigations: []
+# - id: mitigation.example
+#   name: What the control does
+#   riskReduction: 0-100
+#   attributes:
+#     threats: [threat.example]
+#     kind: preventive                          # preventive | detective | corrective | deterrent
+#     touchpoints: [src/path/file.py]           # where it lands in the code
+#     requirements: [SR-001]
+#     status: required                          # required | planned | implemented | verified | rejected
+
+requirements: []
+# - id: SR-001
+#   statement: System MUST ... (testable, imperative)
+#   priority: P1
+#   mitigations: [mitigation.example]
+#   acceptance:
+#     - {given: ..., when: ..., then: ...}
+#   tasks: []                                   # T### ids, filled from tasks.md
+
+verification: []             # appended by /speckit.threatspec.converge; never rewritten
+decisions: []                # [{id: decision.x, threat: threat.x, status: accepted, owner: "@who", rationale: "...", expires: YYYY-MM-DD}]

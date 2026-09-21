@@ -1,0 +1,366 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hupe1980/spec-kit-threatspec/schemas/threat-model.schema.json",
+  "title": "ThreatSpec threat model (Open Threat Model superset)",
+  "description": "An OTM 0.2.0 document extended with ThreatSpec keys: threatspec, requirements, verification, decisions. Reference integrity is enforced by the check script (C2), not by this schema.",
+  "type": "object",
+  "required": ["otmVersion", "project", "threatspec"],
+  "properties": {
+    "otmVersion": { "type": "string", "pattern": "^0\\.[0-9]+\\.[0-9]+$" },
+    "project": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "owner": { "type": "string" },
+        "attributes": { "type": ["object", "null"] }
+      }
+    },
+    "threatspec": {
+      "type": "object",
+      "required": ["version"],
+      "properties": {
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
+        "generated": { "type": "string" },
+        "profiles": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9-]+$" } },
+        "extends": { "type": ["string", "null"] },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": { "type": "string" },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
+        },
+        "actors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name"],
+            "properties": {
+              "id": { "$ref": "#/$defs/actorId" },
+              "name": { "type": "string" },
+              "trust": { "enum": ["untrusted", "semi-trusted", "trusted", "privileged"] },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "surfaces": {
+          "type": "array",
+          "description": "Applicability surfaces present in this system (profile-defined ids)",
+          "items": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+        },
+        "exclusions": {
+          "type": "array",
+          "description": "Spec entities deliberately left out of the model, with the reason (suppresses check C8)",
+          "items": {
+            "type": "object",
+            "required": ["entity", "reason"],
+            "properties": {
+              "entity": { "type": "string", "minLength": 1 },
+              "reason": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "dispositions": {
+          "type": "array",
+          "description": "Per technique disposition when no threat was recorded",
+          "items": {
+            "type": "object",
+            "required": ["technique", "disposition"],
+            "properties": {
+              "technique": { "type": "string" },
+              "disposition": { "enum": ["no-threat-detected", "not-applicable"] },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "representations": { "type": "array" },
+    "trustZones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": { "$ref": "#/$defs/tzId" },
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "description": { "type": "string" },
+          "risk": {
+            "type": "object",
+            "properties": { "trustRating": { "type": "integer", "minimum": 0, "maximum": 100 } }
+          },
+          "attributes": { "type": ["object", "null"] }
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": { "$ref": "#/$defs/assetId" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "risk": {
+            "type": "object",
+            "properties": {
+              "confidentiality": { "type": "integer", "minimum": 0, "maximum": 100 },
+              "integrity": { "type": "integer", "minimum": 0, "maximum": 100 },
+              "availability": { "type": "integer", "minimum": 0, "maximum": 100 },
+              "comment": { "type": "string" }
+            }
+          },
+          "attributes": {
+            "type": ["object", "null"],
+            "properties": {
+              "type": { "type": "string" },
+              "classification": { "enum": ["public", "internal", "confidential", "restricted", "pii", "secret"] },
+              "owner": { "type": "string" },
+              "source": { "type": "string" },
+              "capabilities": { "type": "array", "items": { "enum": ["read", "write", "execute", "network", "payment"] } }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "type"],
+        "properties": {
+          "id": { "$ref": "#/$defs/componentId" },
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "description": { "type": "string" },
+          "parent": {
+            "type": "object",
+            "properties": {
+              "trustZone": { "$ref": "#/$defs/tzId" },
+              "component": { "$ref": "#/$defs/componentId" }
+            }
+          },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "assets": { "type": "array", "items": { "$ref": "#/$defs/assetId" } },
+          "threats": { "type": "array", "items": { "$ref": "#/$defs/threatRef" } },
+          "attributes": { "type": ["object", "null"] }
+        }
+      }
+    },
+    "dataflows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "source", "destination"],
+        "properties": {
+          "id": { "$ref": "#/$defs/flowId" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "bidirectional": { "type": "boolean" },
+          "source": { "type": "string" },
+          "destination": { "type": "string" },
+          "assets": { "type": "array", "items": { "$ref": "#/$defs/assetId" } },
+          "threats": { "type": "array", "items": { "$ref": "#/$defs/threatRef" } },
+          "attributes": {
+            "type": ["object", "null"],
+            "properties": {
+              "crosses": { "type": "array", "items": { "$ref": "#/$defs/tzId" } },
+              "protocol": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "threats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "categories", "risk"],
+        "properties": {
+          "id": { "$ref": "#/$defs/threatId" },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "categories": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "enum": [
+                "Spoofing", "Tampering", "Repudiation", "Information Disclosure", "Denial of Service", "Elevation of Privilege",
+                "Linkability", "Identifiability", "Non-repudiation", "Detectability", "Unawareness", "Non-compliance"
+              ]
+            }
+          },
+          "cwes": { "type": "array", "items": { "type": "string", "pattern": "^CWE-[0-9]+$" } },
+          "risk": {
+            "type": "object",
+            "required": ["likelihood", "impact"],
+            "properties": {
+              "likelihood": { "type": "integer", "minimum": 0, "maximum": 100 },
+              "impact": { "type": "integer", "minimum": 0, "maximum": 100 },
+              "likelihoodComment": { "type": "string" },
+              "impactComment": { "type": "string" }
+            }
+          },
+          "attributes": {
+            "type": "object",
+            "required": ["status"],
+            "properties": {
+              "technique": { "type": "string" },
+              "profile": { "type": "string" },
+              "mappings": {
+                "type": "object",
+                "additionalProperties": { "type": "array", "items": { "type": "string" } }
+              },
+              "disposition": { "enum": ["threat", "needs-clarification"] },
+              "actor": { "$ref": "#/$defs/actorId" },
+              "assets": { "type": "array", "items": { "$ref": "#/$defs/assetId" } },
+              "elements": { "type": "array", "items": { "type": "string" } },
+              "severity": { "$ref": "#/$defs/severity" },
+              "severity_override": {
+                "type": "object",
+                "required": ["level", "reason"],
+                "properties": {
+                  "level": { "$ref": "#/$defs/severity" },
+                  "reason": { "type": "string", "minLength": 1 }
+                }
+              },
+              "source": { "type": "string" },
+              "status": { "enum": ["open", "mitigated", "accepted", "transferred", "retired"] },
+              "superseded_by": { "$ref": "#/$defs/threatId" },
+              "retired_reason": { "type": "string" },
+              "constitution": { "type": "string", "description": "Constitution principle this threat would violate if unmitigated" },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "mitigations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "attributes"],
+        "properties": {
+          "id": { "$ref": "#/$defs/mitigationId" },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "riskReduction": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "attributes": {
+            "type": "object",
+            "required": ["threats"],
+            "properties": {
+              "threats": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/threatId" } },
+              "kind": { "enum": ["preventive", "detective", "corrective", "deterrent"] },
+              "touchpoints": { "type": "array", "items": { "type": "string" } },
+              "requirements": { "type": "array", "items": { "$ref": "#/$defs/srId" } },
+              "status": { "enum": ["required", "planned", "implemented", "verified", "rejected"] },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "statement", "mitigations"],
+        "properties": {
+          "id": { "$ref": "#/$defs/srId" },
+          "statement": { "type": "string", "minLength": 1 },
+          "priority": { "enum": ["P1", "P2", "P3"] },
+          "mitigations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/mitigationId" } },
+          "acceptance": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["given", "when", "then"],
+              "properties": {
+                "given": { "type": "string" },
+                "when": { "type": "string" },
+                "then": { "type": "string" }
+              }
+            }
+          },
+          "tasks": { "type": "array", "items": { "type": "string", "pattern": "^T[0-9]{3,}$" } },
+          "constitution": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "verification": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "requirement", "method", "evidence", "result"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^verification\\.[a-z0-9.-]+$" },
+          "requirement": { "$ref": "#/$defs/srId" },
+          "method": { "enum": ["test", "review", "scan", "manual", "evidence"] },
+          "evidence": { "type": "string", "minLength": 1 },
+          "result": { "enum": ["pass", "fail", "partial", "inconclusive"] },
+          "verdict": { "enum": ["verified", "implemented-unverified", "partial", "missing"] },
+          "justification": { "type": "string" },
+          "verified_at": { "type": "string" },
+          "verified_by": { "type": "string" },
+          "commit": { "type": "string" }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "threat", "status", "owner", "rationale", "expires"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^decision\\.[a-z0-9.-]+$" },
+          "threat": { "$ref": "#/$defs/threatId" },
+          "status": { "enum": ["accepted", "transferred"] },
+          "owner": { "type": "string", "minLength": 1 },
+          "rationale": { "type": "string", "minLength": 1 },
+          "expires": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+          "decided_at": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "severity": { "enum": ["low", "medium", "high", "critical", "unrated"] },
+    "actorId": { "type": "string", "pattern": "^actor\\.[a-z0-9.-]+$" },
+    "tzId": { "type": "string", "pattern": "^tz\\.[a-z0-9.-]+$" },
+    "assetId": { "type": "string", "pattern": "^asset\\.[a-z0-9.-]+$" },
+    "componentId": { "type": "string", "pattern": "^component\\.[a-z0-9.-]+$" },
+    "flowId": { "type": "string", "pattern": "^flow\\.[a-z0-9.-]+$" },
+    "threatId": { "type": "string", "pattern": "^threat\\.[a-z0-9.-]+$" },
+    "mitigationId": { "type": "string", "pattern": "^mitigation\\.[a-z0-9.-]+$" },
+    "srId": { "type": "string", "pattern": "^SR-[0-9]{3,}$" },
+    "threatRef": {
+      "type": "object",
+      "required": ["threat"],
+      "properties": {
+        "threat": { "$ref": "#/$defs/threatId" },
+        "state": { "enum": ["open", "mitigated", "accepted", "transferred", "retired"] },
+        "mitigations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["mitigation"],
+            "properties": {
+              "mitigation": { "$ref": "#/$defs/mitigationId" },
+              "state": { "enum": ["required", "planned", "implemented", "verified", "rejected"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

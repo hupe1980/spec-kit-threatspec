@@ -1,0 +1,123 @@
+schema_version: "1.0"
+
+extension:
+  id: threatspec
+  name: "ThreatSpec — Threat Modeling & Security Traceability"
+  version: "0.1.0"
+  description: "STRIDE and AI/ML threat modeling with threat-to-test traceability and security convergence"
+  category: process
+  effect: read-write
+  author: hupe1980
+  repository: https://github.com/hupe1980/spec-kit-threatspec
+  homepage: https://github.com/hupe1980/spec-kit-threatspec
+  license: MIT
+
+requires:
+  speckit_version: ">=1.0.0"
+
+provides:
+  commands:
+    - name: speckit.threatspec.model
+      file: commands/speckit.threatspec.model.md
+      description: "Create or incrementally update the feature threat model (threat-model.yaml) from spec.md and plan.md, and publish SR-### security requirements into spec.md"
+    - name: speckit.threatspec.check
+      file: commands/speckit.threatspec.check.md
+      description: "Deterministic and semantic gap check across threats, mitigations, security requirements, tasks, and verification"
+    - name: speckit.threatspec.converge
+      file: commands/speckit.threatspec.converge.md
+      description: "Verify security requirements against code and tests with evidence, record verification, and append remediation tasks"
+
+  templates:
+    - name: threatspec-threat-model
+      file: templates/threat-model.md
+      description: "Human-readable rendering of threat-model.yaml"
+    - name: threatspec-threat-model-yaml
+      file: templates/threat-model.yaml
+      description: "Empty OTM-compatible threat model skeleton"
+    - name: threatspec-security-requirements
+      file: templates/security-requirements.md
+      description: "Security Requirements block inserted into spec.md between threatspec markers"
+
+  scripts:
+    - name: threatspec-python
+      file: scripts/python/threatspec.py
+      description: "ThreatSpec engine: paths, init, validate, merge, render, check, converge-scan, converge-apply"
+      runtimes: [python]
+    - name: threatspec-bash
+      file: scripts/bash/threatspec.sh
+      description: "Bash wrapper that locates a Python runtime and delegates to the engine"
+      runtimes: [bash]
+    - name: threatspec-powershell
+      file: scripts/powershell/threatspec.ps1
+      description: "PowerShell wrapper that locates a Python runtime and delegates to the engine"
+      runtimes: [powershell]
+
+  config:
+    - name: threatspec-config.yml
+      template: config-template.yml
+      description: "ThreatSpec configuration (profiles, enforcement, severity, verification)"
+      required: false
+
+hooks:
+  after_specify:
+    command: speckit.threatspec.model
+    optional: true
+    prompt: "Generate or update the threat model for this feature?"
+    description: "Threat model from spec.md: assets, actors, trust zones, threats, SR-### requirements"
+  after_clarify:
+    command: speckit.threatspec.model
+    optional: true
+    prompt: "The spec changed. Refresh the threat model?"
+    description: "Incremental threat-model update after clarifications"
+  after_plan:
+    command: speckit.threatspec.model
+    optional: true
+    prompt: "Refine the threat model with the plan's components and data flows?"
+    description: "Second pass over plan.md: components, data flows, trust boundaries"
+  after_tasks:
+    command: speckit.threatspec.check
+    optional: true
+    prompt: "Check that every security requirement has a task?"
+    description: "Gap check: threats → mitigations → SR-### → tasks"
+  before_implement:
+    command: speckit.threatspec.check
+    optional: true
+    prompt: "Run the security gap check before implementing?"
+    description: "Blocks on CRITICAL findings when enforcement is strict"
+  after_implement:
+    command: speckit.threatspec.converge
+    optional: true
+    prompt: "Verify security convergence?"
+    description: "Evidence-based verification of every SR-###"
+  before_converge:
+    command: speckit.threatspec.converge
+    optional: true
+    prompt: "Add unmet security requirements as convergence tasks?"
+    description: "Appends security remediation tasks so core converge picks them up"
+
+tags:
+  - "security"
+  - "threat-modeling"
+  - "llm"
+  - "agentic"
+  - "traceability"
+
+config:
+  defaults:
+    profiles: [stride]
+    enforcement: warn
+    severity:
+      matrix: default
+      block_on: [critical]
+    risk_acceptance:
+      require_owner: true
+      max_duration_days: 180
+    model:
+      baseline: .specify/memory/threat-model.yaml
+      write_requirements_to_spec: true
+      render_markdown: true
+      diagram: mermaid
+    verification:
+      test_command: ""
+      scanners: []
+      evidence_markers: ["SR-"]

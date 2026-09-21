@@ -1,0 +1,131 @@
+# ThreatSpec profile: agentic systems
+# Mapped to OWASP Top 10 for Agentic Applications 2026 (ASI01–ASI10) and MAESTRO layers.
+# Mapping keys: owasp-asi-2026, maestro-layer.
+
+profile:
+  id: agent
+  name: Agentic system threats
+  version: "0.1"
+  foundation: "OWASP Top 10 for Agentic Applications 2026; OWASP Multi-Agentic System Threat Modeling Guide (MAESTRO)"
+  mapping_keys: [owasp-asi-2026, maestro-layer]
+
+asset_types:
+  - { id: agent, description: "An autonomous or semi-autonomous agent" }
+  - { id: tool, description: "A callable capability exposed to an agent (function, API, MCP tool)" }
+  - { id: mcp-server, description: "A Model Context Protocol server providing tools or resources" }
+  - { id: agent-memory, description: "Persistent or session memory read by an agent" }
+  - { id: agent-identity, description: "Credentials or identity an agent acts under" }
+  - { id: skill, description: "Instruction package or plugin loaded by an agent" }
+
+surfaces:
+  - { id: agent-autonomy, description: "An agent plans and executes multi-step actions" }
+  - { id: write-capable-tool, description: "A tool can change state (write, send, pay, delete, execute)" }
+  - { id: agent-memory, description: "The agent persists memory across turns or sessions" }
+  - { id: multi-agent, description: "Agents communicate with or delegate to other agents" }
+  - { id: code-execution, description: "The agent can run generated code or commands" }
+  - { id: external-skill-supply, description: "Skills, tools, or MCP servers are installed from external sources" }
+  - { id: human-in-loop, description: "People approve or act on agent recommendations" }
+  - { id: delegated-identity, description: "The agent acts with a human's or service's credentials" }
+
+techniques:
+  - id: goal-hijack
+    name: Agent goal or plan hijacked by injected instructions
+    category: Tampering
+    applies_to: [component, dataflow]
+    surfaces: [agent-autonomy]
+    mappings: { owasp-asi-2026: [ASI01], maestro-layer: [L3-agent-frameworks] }
+    mitigations: [goal-integrity-checks, instruction-data-separation, plan-review]
+  - id: tool-misuse
+    name: Tool invoked with harmful or out-of-scope parameters
+    category: Elevation of Privilege
+    applies_to: [component, dataflow]
+    surfaces: [write-capable-tool]
+    mappings: { owasp-asi-2026: [ASI02], maestro-layer: [L3-agent-frameworks] }
+    mitigations: [tool-parameter-validation, tool-confirmation, least-privilege-tools]
+  - id: identity-privilege-abuse
+    name: Agent identity or delegated credentials abused beyond intended scope
+    category: Elevation of Privilege
+    applies_to: [component]
+    surfaces: [delegated-identity]
+    mappings: { owasp-asi-2026: [ASI03], maestro-layer: [L6-security-compliance] }
+    mitigations: [scoped-credentials, per-action-authorization, credential-isolation]
+  - id: agentic-supply-chain
+    name: Malicious or compromised skill, tool, or MCP server
+    category: Tampering
+    applies_to: [component]
+    surfaces: [external-skill-supply]
+    mappings: { owasp-asi-2026: [ASI04], maestro-layer: [L7-agent-ecosystem] }
+    mitigations: [tool-allowlist, artifact-signing, skill-review]
+  - id: unexpected-code-execution
+    name: Generated code or commands executed outside a sandbox
+    category: Elevation of Privilege
+    applies_to: [component]
+    surfaces: [code-execution]
+    mappings: { owasp-asi-2026: [ASI05], maestro-layer: [L4-deployment-infrastructure] }
+    mitigations: [sandboxed-execution, command-allowlist, tool-confirmation]
+  - id: memory-context-poisoning
+    name: Persistent memory or context poisoned to influence future behaviour
+    category: Tampering
+    applies_to: [datastore, dataflow]
+    surfaces: [agent-memory]
+    mappings: { owasp-asi-2026: [ASI06], maestro-layer: [L2-data-operations] }
+    mitigations: [memory-write-validation, memory-provenance, memory-expiry]
+  - id: insecure-inter-agent-communication
+    name: Messages between agents spoofed, tampered, or unauthenticated
+    category: Spoofing
+    applies_to: [dataflow]
+    surfaces: [multi-agent]
+    mappings: { owasp-asi-2026: [ASI07], maestro-layer: [L7-agent-ecosystem] }
+    mitigations: [authenticated-agent-channels, message-schemas, mutual-tls]
+  - id: cascading-failure
+    name: One agent's error or compromise propagates across the system
+    category: Denial of Service
+    applies_to: [component]
+    surfaces: [multi-agent, agent-autonomy]
+    mappings: { owasp-asi-2026: [ASI08], maestro-layer: [L5-evaluation-observability] }
+    mitigations: [blast-radius-limits, circuit-breakers, recursion-caps]
+  - id: human-agent-trust-exploitation
+    name: People over-trust or are manipulated by agent output
+    category: Repudiation
+    applies_to: [component]
+    surfaces: [human-in-loop]
+    mappings: { owasp-asi-2026: [ASI09], maestro-layer: [L5-evaluation-observability] }
+    mitigations: [action-transparency, confidence-signaling, human-review-for-high-impact]
+  - id: rogue-agent
+    name: Agent deviates from intended behaviour and cannot be stopped
+    category: Elevation of Privilege
+    applies_to: [component]
+    surfaces: [agent-autonomy]
+    mappings: { owasp-asi-2026: [ASI10], maestro-layer: [L3-agent-frameworks] }
+    mitigations: [kill-switch, behaviour-monitoring, bounded-autonomy]
+
+mitigation_patterns:
+  - { id: goal-integrity-checks, name: Validate plan steps against the original goal, kind: detective }
+  - { id: instruction-data-separation, name: Delimit untrusted content as data; instructions never come from content, kind: preventive }
+  - { id: plan-review, name: Plan shown and approved before execution for high-impact tasks, kind: preventive }
+  - { id: tool-parameter-validation, name: Schema and policy validation of tool arguments, kind: preventive }
+  - { id: tool-confirmation, name: Human or policy confirmation before high-impact tool calls, kind: preventive }
+  - { id: least-privilege-tools, name: Tools scoped to the minimum capability and data, kind: preventive }
+  - { id: scoped-credentials, name: Per-tool, per-user short-lived credentials, kind: preventive }
+  - { id: per-action-authorization, name: Authorization checked per action, not per session, kind: preventive }
+  - { id: credential-isolation, name: Agent never sees raw credentials, kind: preventive }
+  - { id: tool-allowlist, name: Explicit allowlist of tools and MCP servers, kind: preventive }
+  - { id: artifact-signing, name: Verify signatures of skills and tools, kind: preventive }
+  - { id: skill-review, name: Security review before a skill is enabled, kind: preventive }
+  - { id: sandboxed-execution, name: Execute generated code only in a sandbox, kind: preventive }
+  - { id: command-allowlist, name: Allowlist of executable commands, kind: preventive }
+  - { id: memory-write-validation, name: Validate and moderate memory writes, kind: preventive }
+  - { id: memory-provenance, name: Memory entries carry source and trust level, kind: detective }
+  - { id: memory-expiry, name: Memory expires and can be purged, kind: corrective }
+  - { id: authenticated-agent-channels, name: Authenticated, integrity-protected agent messaging, kind: preventive }
+  - { id: message-schemas, name: Strict schemas for inter-agent messages, kind: preventive }
+  - { id: mutual-tls, name: Mutual TLS between services, kind: preventive }
+  - { id: blast-radius-limits, name: Limit what a single agent can affect, kind: preventive }
+  - { id: circuit-breakers, name: Circuit breakers on agent-to-agent calls, kind: corrective }
+  - { id: recursion-caps, name: Caps on agent loops and fan-out, kind: preventive }
+  - { id: action-transparency, name: Every agent action is visible and attributable, kind: detective }
+  - { id: confidence-signaling, name: Surface uncertainty to the user, kind: preventive }
+  - { id: human-review-for-high-impact, name: Human review before high-impact outputs are acted on, kind: preventive }
+  - { id: kill-switch, name: Immediate stop for any agent, kind: corrective }
+  - { id: behaviour-monitoring, name: Monitor agent behaviour against policy, kind: detective }
+  - { id: bounded-autonomy, name: Explicit limits on autonomous steps and scope, kind: preventive }
