@@ -197,3 +197,31 @@ def test_strict_flag_is_reflected_in_report_and_exit_code(engine, rag_repo, rag_
     assert "Enforcement: `strict`" in (rag_feature / "security" / "check-report.md").read_text(encoding="utf-8")
     rc = engine.main(["--repo", str(rag_repo), "--feature-dir", str(rag_feature), "check", "--format", "json"])
     assert json.loads(capsys.readouterr().out)["enforcement"] == "warn"
+
+
+def test_source_hash_is_line_ending_independent(engine, rag_repo, rag_feature):
+    """A CRLF checkout (git autocrlf on Windows) must hash identically to an LF one."""
+    paths = engine.Paths(rag_repo, rag_feature)
+    lf = {n: engine.source_hash(rag_feature / n) for n in ("spec.md", "plan.md")}
+    for n in ("spec.md", "plan.md"):
+        raw = (rag_feature / n).read_bytes()
+        (rag_feature / n).write_bytes(raw.replace(b"\n", b"\r\n"))
+        assert b"\r\n" in (rag_feature / n).read_bytes()
+    crlf = {n: engine.source_hash(rag_feature / n) for n in ("spec.md", "plan.md")}
+    assert crlf == lf, "hashes must not depend on line endings"
+    model = engine.load_model(paths.model)
+    model["threatspec"]["sources"] = engine.sources_for(paths)
+    paths.model.write_text(engine.dump_yaml(model), encoding="utf-8")
+    findings, _, _ = run_check(engine, rag_repo, rag_feature)
+    assert "C9" not in checks(findings), "CRLF checkout must not register as drift"
+
+
+def test_reported_paths_use_forward_slashes(engine, rag_repo, rag_feature):
+    """Evidence and SARIF paths must be POSIX-style on every platform."""
+    ev = engine.find_evidence(rag_repo, "SR-001", engine.load_config(rag_repo), [])
+    assert all("\\" not in p for p in ev["test_files"]) and ev["test_files"]
+    paths = engine.Paths(rag_repo, rag_feature)
+    findings, _, _ = run_check(engine, rag_repo, rag_feature)
+    sarif = json.loads(engine.report_sarif(findings, paths))
+    uris = [r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] for r in sarif["runs"][0]["results"]]
+    assert uris and all("\\" not in u for u in uris)

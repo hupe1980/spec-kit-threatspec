@@ -366,11 +366,15 @@ def strip_managed_block(text: str) -> str:
 
 
 def source_hash(path: Path) -> str:
-    """Content hash used for drift detection. spec.md is normalised: managed block removed, trailing newlines trimmed."""
+    """Content hash used for drift detection, stable across platforms.
+
+    Text is read with universal newlines (so CRLF checkouts hash like LF ones), the ThreatSpec-managed
+    block is removed from spec.md, and trailing newlines are trimmed.
+    """
+    text = path.read_text(encoding="utf-8")  # universal newline mode normalises \r\n to \n
     if path.name == "spec.md":
-        normalised = strip_managed_block(path.read_text(encoding="utf-8")).rstrip("\n")
-        return hashlib.sha256(normalised.encode("utf-8")).hexdigest()
-    return sha256_file(path)
+        text = strip_managed_block(text)
+    return hashlib.sha256(text.rstrip("\n").encode("utf-8")).hexdigest()
 
 
 def sources_for(paths: Paths) -> List[Dict[str, str]]:
@@ -813,7 +817,7 @@ def report_sarif(findings: List[Finding], paths: Paths) -> str:
                                    "shortDescription": {"text": CHECK_NAMES.get(f.check, f.check)}})
         uri = f.location.split("#", 1)[0]
         if paths.feature:
-            uri = str((paths.feature / uri).relative_to(paths.repo)) if (paths.feature / uri).exists() else uri
+            uri = (paths.feature / uri).relative_to(paths.repo).as_posix() if (paths.feature / uri).exists() else uri
         results.append({
             "ruleId": f.check, "level": level.get(f.severity, "warning"),
             "message": {"text": f"{f.summary}. {f.recommendation}"},
@@ -1225,7 +1229,7 @@ def find_evidence(repo: Path, rid: str, cfg: Dict[str, Any], touchpoints: List[s
             except OSError:
                 continue
             if pat.search(content):
-                hits.append(str(p.relative_to(repo)))
+                hits.append(p.relative_to(repo).as_posix())
     tp = [{"path": t, "exists": (repo / t).exists()} for t in touchpoints]
     return {"test_files": sorted(hits), "touchpoints": tp}
 

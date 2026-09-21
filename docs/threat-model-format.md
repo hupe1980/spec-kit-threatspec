@@ -142,7 +142,7 @@ A spec key entity listed here is deliberately out of the model, and check C8 ski
 
 ## Drift hashes
 
-`threatspec.sources[]` records a SHA-256 per source file. For `spec.md` the hash is taken with the ThreatSpec-managed block (between `<!-- threatspec:begin -->` and `<!-- threatspec:end -->`) removed, so rendering the SR block never counts as drift; any edit outside the markers does.
+`threatspec.sources[]` records a SHA-256 per source file. The hash is computed on universal-newline text with trailing newlines trimmed, so a CRLF checkout on Windows produces the same digest as an LF one. For `spec.md` the ThreatSpec-managed block (between `<!-- threatspec:begin -->` and `<!-- threatspec:end -->`) is removed first, so rendering the SR block never counts as drift; any edit outside the markers does.
 
 ## Determinism
 

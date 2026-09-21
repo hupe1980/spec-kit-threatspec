@@ -9,7 +9,7 @@ threatspec:
   profiles: [stride, llm, agent]
   extends: null
   sources:
-    - { path: plan.md, sha256: 1fbd0de273270845f5b4be28849e2afef68d298d9dc56e1f9fd100d9687ff47f }
+    - { path: plan.md, sha256: 899011e46d29da874b2408bbe334c7e98c276e5704e3e1510a7493415542db00 }
     - { path: spec.md, sha256: 7355ca09f0d02a23d8d9a2ee5c269a48b1aff3be411b3b5b2dba33e611a92029 }
   actors:
     - id: actor.employee

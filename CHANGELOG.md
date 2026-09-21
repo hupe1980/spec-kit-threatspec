@@ -15,6 +15,7 @@ All notable changes to the ThreatSpec extension are documented here. The format 
 - Companion preset `threatspec-sdd` (append overrides for `tasks`, `analyze`, `converge`, `checklist`) and workflow `secure-sdd`.
 - Test suite with a golden `rag-assistant` fixture and a `broken` fixture.
 - Fixes from an end-to-end run: coverage no longer lists retired clarification threats; `converge-apply` no longer duplicates convergence tasks on re-run; task linking requires `[SR-###]` bracket tags so prose ranges cannot inflate coverage; `threatspec.exclusions` records deliberately omitted spec entities and silences C8.
+- Windows/CRLF correctness: source hashes are computed on universal-newline text so a CRLF checkout is not reported as drift, and every reported path (evidence, SARIF URIs) is POSIX-style. `.gitattributes` normalises checkouts to LF.
 - `check --strict` now reports `Enforcement: strict` in the Markdown, JSON, SARIF-adjacent, and persisted outputs, matching the exit code it enforces.
 - `catalog.json` at the repository root: an installable self-hosted catalog with a tag-pinned download URL; `docs/publishing.md` maps the Spec Kit publishing guide and submission template to this repository.
 - `examples/rag-assistant`: a complete first-pass model produced by the model command from a bare spec, with rendered view, check report, and coverage table, kept valid by tests.
