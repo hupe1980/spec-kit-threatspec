@@ -35,7 +35,8 @@ def test_commands_are_namespaced_and_files_exist():
         assert text.startswith("---\ndescription:"), "command needs frontmatter with description"
         assert "$ARGUMENTS" in text
         # Sibling references must use agent-neutral tokens, never literal slash commands
-        assert "/speckit.threatspec." not in text, f"{cmd['file']} hard-codes a slash invocation"
+        for literal in ("/speckit.threatspec.", "/speckit-threatspec-"):
+            assert literal not in text, f"{cmd['file']} hard-codes a slash invocation"
 
 
 def test_templates_scripts_config_exist():

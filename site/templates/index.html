@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <div class="wrap hero__inner">
+    <p class="hero__kicker">{{ section.extra.hero_kicker }}</p>
+    <h1 class="hero__title">🛡️ ThreatSpec</h1>
+    <p class="hero__tagline">{{ config.extra.tagline }}</p>
+    <div class="hero__prose">{{ section.content | safe }}</div>
+    <div class="hero__ctas">
+      <a class="btn btn--primary" href="{{ get_url(path="docs/") }}">Read the docs</a>
+      <a class="btn btn--ghost" href="{{ config.extra.repo }}" rel="noopener" target="_blank">View on GitHub</a>
+    </div>
+    <pre class="hero__install"><code>{{ section.extra.install_cmd }}</code></pre>
+  </div>
+</section>
+
+<section class="section pipeline">
+  <div class="wrap">
+    <h2>The lifecycle loop</h2>
+    <p class="section__lead">Every threat resolves to a Security Requirement, and every requirement resolves to a task and a piece of evidence.</p>
+    <pre class="hero__install chain">{{ section.extra.chain }}</pre>
+    <ol class="pipeline__list">
+      {% for step in section.extra.workflow %}
+      <li class="pipeline__step">
+        <code class="pipeline__cmd">{{ step.cmd }}</code>
+        <span class="pipeline__arrow" aria-hidden="true">→</span>
+        <span class="pipeline__output">{{ step.output }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+</section>
+
+<section class="section commands">
+  <div class="wrap">
+    <h2>Commands</h2>
+    <div class="cards">
+      {% for c in section.extra.commands %}
+      <article class="card">
+        <h3><code>{{ c.name }}</code></h3>
+        <p>{{ c.does }}</p>
+        <p class="card__meta"><strong>Writes:</strong> {{ c.writes }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section profiles">
+  <div class="wrap">
+    <h2>Profiles</h2>
+    <p class="section__lead">Techniques, applicability surfaces, and edition-pinned framework mappings, layered on top of STRIDE.</p>
+    <div class="cards cards--compact">
+      {% for p in section.extra.profiles %}
+      <article class="card">
+        <h3><code>{{ p.id }}</code></h3>
+        <p>{{ p.foundation }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section principles">
+  <div class="wrap">
+    <h2>Design principles</h2>
+    <ul class="principles__list">
+      {% for pr in section.extra.principles %}
+      <li><span class="principles__emoji" aria-hidden="true">{{ pr.emoji }}</span> {{ pr.label }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+
+<section class="section cta-band">
+  <div class="wrap cta-band__inner">
+    <div>
+      <h2>Ready to close the loop?</h2>
+      <p>Install ThreatSpec as a Spec Kit extension and generate your first threat model from a spec alone.</p>
+    </div>
+    <div class="hero__ctas">
+      <a class="btn btn--primary" href="{{ get_url(path="docs/") }}">Get started in the docs</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

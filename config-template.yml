@@ -1,16 +1,17 @@
 # ThreatSpec configuration
 # Copy to .specify/extensions/threatspec/threatspec-config.yml and adjust.
 # Local overrides: threatspec-config.local.yml (gitignored).
-# Environment overrides: SPECKIT_THREATSPEC_<SECTION>_<KEY>, e.g. SPECKIT_THREATSPEC_ENFORCEMENT=strict
+# Environment overrides: SPECKIT_THREATSPEC_ENFORCEMENT and SPECKIT_THREATSPEC_PROFILES only.
+# Reference: https://hupe1980.github.io/spec-kit-threatspec/docs/configuration/
 
-# Threat catalogs to apply. Available in v0.1: stride, llm, agent.
+# Threat catalogs to apply. Available: stride, llm, agent.
 profiles:
   - stride
   - llm
   - agent
 
 # warn   → check/converge report findings and continue
-# strict → CRITICAL findings instruct the agent to stop before /speckit.implement
+# strict → CRITICAL findings instruct the agent to stop before /speckit-implement
 enforcement: warn
 
 severity:

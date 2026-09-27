@@ -826,7 +826,7 @@ def report_sarif(findings: List[Finding], paths: Paths) -> str:
         })
     sarif = {
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json", "version": "2.1.0",
-        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.1.0",
+        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.2.0",
                                        "informationUri": "https://github.com/hupe1980/spec-kit-threatspec",
                                        "rules": list(rules.values())}},
                   "results": results}],

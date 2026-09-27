@@ -2,7 +2,9 @@
 
 **ThreatSpec is a [Spec Kit](https://github.com/github/spec-kit) extension that makes threat modeling and security traceability a first-class part of Spec-Driven Development.**
 
-It generates a machine-readable, [Open Threat Model](https://github.com/iriusrisk/OpenThreatModel)-compatible threat model from your Spec Kit artifacts, derives testable security requirements (`SR-###`) from it, feeds them into `/speckit.plan` and `/speckit.tasks`, checks the whole chain for gaps deterministically, and verifies after implementation that every threat has been mitigated, implemented, and tested.
+📖 **[Full documentation and reference →](https://hupe1980.github.io/spec-kit-threatspec/)**
+
+It generates a machine-readable, [Open Threat Model](https://github.com/iriusrisk/OpenThreatModel)-compatible threat model from your Spec Kit artifacts, derives testable security requirements (`SR-###`) from it, feeds them into `/speckit-plan` and `/speckit-tasks`, checks the whole chain for gaps deterministically, and verifies after implementation that every threat has been mitigated, implemented, and tested.
 
 ```text
 Asset ─▶ Threat ─▶ Mitigation ─▶ Security Requirement (SR-###)
@@ -14,24 +16,26 @@ Asset ─▶ Threat ─▶ Mitigation ─▶ Security Requirement (SR-###)
 ## 🔁 Workflow
 
 ```text
-/speckit.specify              spec.md
+/speckit-specify                        spec.md
         ↓
-/speckit.threatspec.model     threat-model.yaml + threat-model.md + SR-### block in spec.md
+/speckit-threatspec-model               threat-model.yaml + threat-model.md + SR-### block in spec.md
         ↓
-/speckit.plan                 plan.md (sees the security requirements)
+/speckit-plan                           plan.md (sees the security requirements)
         ↓
-/speckit.threatspec.model     --from-plan: components, data flows, trust zones
+/speckit-threatspec-model --from-plan   components, data flows, trust zones
         ↓
-/speckit.tasks                tasks.md (security tasks tagged [SR-###])
+/speckit-tasks                          tasks.md (security tasks tagged [SR-###])
         ↓
-/speckit.threatspec.check     gap report: threats → mitigations → SR-### → tasks → verification
+/speckit-threatspec-check               gap report: threats → mitigations → SR-### → tasks → verification
         ↓
-/speckit.implement            code + tests
+/speckit-implement                      code + tests
         ↓
-/speckit.threatspec.converge  evidence-based verification, convergence report, remediation tasks
+/speckit-threatspec-converge            evidence-based verification, convergence report, remediation tasks
         ↓
-/speckit.converge             core convergence completes the appended tasks
+/speckit-converge                       core convergence completes the appended tasks
 ```
+
+✏️ Command names are shown in the hyphenated skills form used by Claude Code, Copilot, Cursor and most other agents. Agents on the dotted default — opencode, gemini, qwen and friends — spell the same commands `/speckit.threatspec.model`. The command bodies never hard-code either form; they use `__SPECKIT_COMMAND_*__` tokens that Spec Kit renders per agent.
 
 🔌 Every ThreatSpec hook is optional by default. Nothing in the core workflow changes unless you opt in.
 
@@ -39,7 +43,7 @@ Asset ─▶ Threat ─▶ Mitigation ─▶ Security Requirement (SR-###)
 
 ```bash
 # From a release archive (the CLI asks you to confirm the untrusted URL)
-specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.1.0.zip
+specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.2.0.zip
 
 # Or register this repository's catalog once, then install by name
 specify extension catalog add https://raw.githubusercontent.com/hupe1980/spec-kit-threatspec/main/catalog.json --name threatspec --install-allowed
@@ -59,9 +63,9 @@ Requirements: Spec Kit ≥ 1.0.0, Python 3 with PyYAML (or [uv](https://docs.ast
 
 | Command | What it does | Writes |
 |---|---|---|
-| 🧠 `/speckit.threatspec.model` | Builds or incrementally updates `threat-model.yaml` from `spec.md` (assets, actors, trust zones, threats, mitigations, `SR-###`) and, with `--from-plan`, from `plan.md` (components, data flows). | `threat-model.yaml`, `threat-model.md`, the marked block in `spec.md` |
-| 🔍 `/speckit.threatspec.check` | Deterministic checks C1–C12 and coverage tables from the engine, plus ten semantic passes; report in the `/speckit.analyze` shape; `--format sarif` for GitHub code scanning. | optional `security/check-report.md` |
-| ✅ `/speckit.threatspec.converge` | Collects evidence per `SR-###`, has the agent judge only from that evidence, records append-only verification history, reports convergence, appends remediation tasks. | `threat-model.yaml`, `security/convergence-report.{md,json}`, appended phase in `tasks.md` |
+| 🧠 `/speckit-threatspec-model` | Builds or incrementally updates `threat-model.yaml` from `spec.md` (assets, actors, trust zones, threats, mitigations, `SR-###`) and, with `--from-plan`, from `plan.md` (components, data flows). | `threat-model.yaml`, `threat-model.md`, the marked block in `spec.md` |
+| 🔍 `/speckit-threatspec-check` | Deterministic checks C1–C12 and coverage tables from the engine, plus ten semantic passes; report in the `/speckit-analyze` shape; `--format sarif` for GitHub code scanning. | optional `security/check-report.md` |
+| ✅ `/speckit-threatspec-converge` | Collects evidence per `SR-###`, has the agent judge only from that evidence, records append-only verification history, reports convergence, appends remediation tasks. | `threat-model.yaml`, `security/convergence-report.{md,json}`, appended phase in `tasks.md` |
 
 ### ⚙️ Deterministic checks
 
@@ -102,7 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hupe1980/spec-kit-threatspec@v0.1.0
+      - uses: hupe1980/spec-kit-threatspec@v0.2.0
         with:
           feature-dir: specs/007-rag-assistant   # optional; auto-detected from SPECIFY_FEATURE or the branch
           strict: "false"
@@ -114,7 +118,7 @@ jobs:
 
 ## 🗂️ The model
 
-`threat-model.yaml` is a valid OTM document with ThreatSpec keys (`threatspec`, `requirements`, `verification`, `decisions`), validated by `schemas/threat-model.schema.json`. See `templates/threat-model.yaml` for the annotated skeleton and `docs/threat-model-format.md` for the reference.
+`threat-model.yaml` is a valid OTM document with ThreatSpec keys (`threatspec`, `requirements`, `verification`, `decisions`), validated by `schemas/threat-model.schema.json`. See `templates/threat-model.yaml` for the annotated skeleton and [the format reference](https://hupe1980.github.io/spec-kit-threatspec/docs/threat-model-format/) for the full spec.
 
 Profiles supply techniques, applicability surfaces, and edition-pinned mappings:
 
@@ -130,18 +134,20 @@ Profiles supply techniques, applicability surfaces, and edition-pinned mappings:
 
 ```yaml
 profiles: [stride, llm, agent]
-enforcement: warn            # strict → CRITICAL findings block /speckit.implement
+enforcement: warn            # strict → CRITICAL findings block /speckit-implement
 severity: { matrix: default, block_on: [critical] }
 risk_acceptance: { require_owner: true, max_duration_days: 180 }
 model: { baseline: .specify/memory/threat-model.yaml, write_requirements_to_spec: true, render_markdown: true, diagram: mermaid }
 verification: { test_command: "", scanners: [], evidence_markers: ["SR-"], test_dirs: [tests, test, spec, __tests__] }
 ```
 
+Every key, its default, what reads it, and the merge order: [configuration reference](https://hupe1980.github.io/spec-kit-threatspec/docs/configuration/).
+
 ## 🧱 Design principles
 
 ♻️ Reusable · 🤝 agent-agnostic · 🔗 traceable · 🎯 deterministic where possible · 🪶 non-intrusive · 📈 incremental · 🧾 evidence over claims · 🙋 honest about uncertainty · 🔄 interoperable (OTM, SARIF) · 🔒 secure by construction (artifact content is untrusted data).
 
-📚 Positioning, design bets, roadmap, and the landscape of related extensions: [docs/design.md](docs/design.md). Methodology: [docs/methodology.md](docs/methodology.md). Model reference: [docs/threat-model-format.md](docs/threat-model-format.md). Lifecycle and CI: [docs/workflow.md](docs/workflow.md). ThreatSpec's own threat model: [docs/threat-model.md](docs/threat-model.md).
+📚 Positioning, design bets, roadmap, and the landscape of related extensions: [design](https://hupe1980.github.io/spec-kit-threatspec/docs/design/). Methodology: [methodology](https://hupe1980.github.io/spec-kit-threatspec/docs/methodology/). Model reference: [threat-model-format](https://hupe1980.github.io/spec-kit-threatspec/docs/threat-model-format/). Lifecycle and CI: [workflow](https://hupe1980.github.io/spec-kit-threatspec/docs/workflow/). Configuration: [configuration](https://hupe1980.github.io/spec-kit-threatspec/docs/configuration/). ThreatSpec's own threat model: [threat-model](https://hupe1980.github.io/spec-kit-threatspec/docs/threat-model/).
 
 ## 🩺 Troubleshooting
 
@@ -157,7 +163,7 @@ verification: { test_command: "", scanners: [], evidence_markers: ["SR-"], test_
 
 ## 🤝 Contributing
 
-Issues and pull requests are welcome at [github.com/hupe1980/spec-kit-threatspec](https://github.com/hupe1980/spec-kit-threatspec). Run the test suite before opening a PR, keep `CHANGELOG.md` current, and bump `extension.version` and `catalog.json` together on every content change (the tests enforce that they agree). New threat profiles go in `profiles/` and need surfaces, techniques, and mitigation patterns that the profile consistency test accepts. Release and catalog submission steps are in [docs/publishing.md](docs/publishing.md).
+Issues and pull requests are welcome at [github.com/hupe1980/spec-kit-threatspec](https://github.com/hupe1980/spec-kit-threatspec). Run the test suite before opening a PR, keep `CHANGELOG.md` current, and bump `extension.version` and `catalog.json` together on every content change (the tests enforce that they agree). New threat profiles go in `profiles/` and need surfaces, techniques, and mitigation patterns that the profile consistency test accepts. Release and catalog submission steps are in [the publishing checklist](https://hupe1980.github.io/spec-kit-threatspec/docs/publishing/). The site itself lives in `site/` (a [Zola](https://www.getzola.org/) project); run `cd site && zola serve` to preview it.
 
 ## 🛠️ Development
 

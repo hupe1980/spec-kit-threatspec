@@ -2,7 +2,7 @@ schema_version: "1.0"
 workflow:
   id: "secure-sdd"
   name: "Secure SDD Cycle"
-  version: "0.1.0"
+  version: "0.2.0"
   author: "hupe1980"
   description: "specify → threat model → plan → threat model (plan pass) → tasks → security check → implement → security converge → converge, with review gates"
 

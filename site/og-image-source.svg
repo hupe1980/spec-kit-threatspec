@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0f1a"/>
+      <stop offset="100%" stop-color="#181229"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g transform="translate(90,155)">
+    <path fill="#6d28d9" d="M160 0 40 50v80c0 83 51.5 143 120 170 68.5-27 120-87 120-170V50L160 0z"/>
+    <path fill="#c4b5fd" d="M160 30 70 67.5v63C70 196.5 108 246 160 268c52-22 90-71.5 90-137.5v-63L160 30z"/>
+    <path fill="#0b0f1a" d="M137.5 152.5 120 170l35 35 65-65-17.5-17.5L155 172.5z"/>
+  </g>
+  <text x="420" y="270" font-family="Helvetica, Arial, sans-serif" font-size="88" font-weight="700" fill="#f3f0ff">ThreatSpec</text>
+  <text x="422" y="330" font-family="Helvetica, Arial, sans-serif" font-size="34" fill="#a9a6c4">Threat Modeling &amp; Security Traceability</text>
+  <text x="422" y="378" font-family="Helvetica, Arial, sans-serif" font-size="34" fill="#a9a6c4">for Spec Kit</text>
+  <text x="422" y="450" font-family="ui-monospace, monospace" font-size="24" fill="#7c6fae">github.com/hupe1980/spec-kit-threatspec</text>
+</svg>

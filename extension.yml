@@ -3,7 +3,7 @@ schema_version: "1.0"
 extension:
   id: threatspec
   name: "ThreatSpec — Threat Modeling & Security Traceability"
-  version: "0.1.0"
+  version: "0.2.0"
   description: "STRIDE and AI/ML threat modeling with threat-to-test traceability and security convergence"
   category: process
   effect: read-write

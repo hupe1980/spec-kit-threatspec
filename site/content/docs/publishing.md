@@ -1,4 +1,9 @@
-# Publishing checklist
++++
+title = "Publishing checklist"
+description = "Checklist mapped to Spec Kit's extension publishing guide: manifest requirements, the release process, and how to submit to the community catalog."
+weight = 70
+template = "docs-page.html"
++++
 
 Mapped to Spec Kit's `extensions/EXTENSION-PUBLISHING-GUIDE.md` and the Extension Submission issue template.
 
@@ -20,14 +25,14 @@ Mapped to Spec Kit's `extensions/EXTENSION-PUBLISHING-GUIDE.md` and the Extensio
 2. Tag and push:
 
    ```bash
-   git tag v0.1.0 && git push origin v0.1.0
+   git tag v0.2.0 && git push origin v0.2.0
    ```
 
-3. The Release workflow runs the tests, builds `threatspec-v0.1.0.zip`, smoke-installs it with the Spec Kit CLI, and publishes a GitHub Release whose notes include the archive's SHA-256.
+3. The Release workflow runs the tests, builds `threatspec-v0.2.0.zip`, smoke-installs it with the Spec Kit CLI, and publishes a GitHub Release whose notes include the archive's SHA-256.
 4. Verify the two install paths the guide expects:
 
    ```bash
-   specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.1.0.zip
+   specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.2.0.zip
    specify extension add --dev /path/to/spec-kit-threatspec
    ```
 
@@ -45,7 +50,7 @@ File an issue with the [Extension Submission](https://github.com/github/spec-kit
 | Repository URL | https://github.com/hupe1980/spec-kit-threatspec |
 | Download URL | https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/vX.Y.Z.zip |
 | License | MIT |
-| Documentation URL | https://github.com/hupe1980/spec-kit-threatspec/blob/main/README.md |
+| Documentation URL | https://hupe1980.github.io/spec-kit-threatspec/ |
 | Changelog URL | https://github.com/hupe1980/spec-kit-threatspec/blob/main/CHANGELOG.md |
 | Required Spec Kit Version | `>=1.0.0` |
 | Required Tools | Python 3 with PyYAML, or uv |
@@ -53,7 +58,7 @@ File an issue with the [Extension Submission](https://github.com/github/spec-kit
 | Number of Hooks | 7 |
 | Tags | security, threat-modeling, llm, agentic, traceability |
 | Key Features | OTM-compatible `threat-model.yaml`; `SR-###` requirements published into `spec.md`; deterministic checks C1–C12 with SARIF output; evidence-based convergence with append-only verification history; profiles for STRIDE, OWASP LLM Top 10 2026, OWASP Agentic Top 10 2026 |
-| Testing checklist | installs from the download URL (release workflow smoke test); commands executed on real projects; docs complete; no known vulnerabilities (see `docs/threat-model.md`) |
+| Testing checklist | installs from the download URL (release workflow smoke test); commands executed on real projects; docs complete; no known vulnerabilities (see [ThreatSpec's own threat model](@/docs/threat-model.md)) |
 
 The community catalog is discovery-only. Users either copy the entry into a catalog they trust or use the `--from` URL. The ready-made entry in `catalog.json` at the repository root is what a maintainer would paste.
 

@@ -1,4 +1,9 @@
-# Design: positioning, bets, roadmap
++++
+title = "Design: positioning, bets, roadmap"
+description = "ThreatSpec's positioning against other Spec Kit security extensions, its core design bets, decisions taken, the roadmap, and the landscape of related tools."
+weight = 50
+template = "docs-page.html"
++++
 
 ## Positioning
 
@@ -11,7 +16,7 @@ Shostack's four questions map onto the SDD lifecycle. Spec Kit answers the first
 | What are we working on? | `spec.md`, `plan.md` | actors, trust zones, assets, components, data flows |
 | What can go wrong? | — | `threat-model.yaml` (STRIDE + AI/ML profiles) |
 | What are we going to do about it? | `tasks.md` | mitigations → `SR-###` → tasks |
-| Did we do a good job? | `/speckit.converge` (functional) | security convergence with evidence |
+| Did we do a good job? | `/speckit-converge` (functional) | security convergence with evidence |
 
 ## Design bets
 

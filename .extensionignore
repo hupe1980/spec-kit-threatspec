@@ -1,6 +1,6 @@
 # Excluded from `specify extension add` installs (development-only content)
 tests/
-docs/
+site/
 preset/
 workflow/
 .github/

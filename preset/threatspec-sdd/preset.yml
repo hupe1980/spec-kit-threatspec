@@ -3,7 +3,7 @@ schema_version: "1.0"
 preset:
   id: "threatspec-sdd"
   name: "ThreatSpec SDD companion"
-  version: "0.1.0"
+  version: "0.2.0"
   description: "Appends SR-### awareness to the core tasks, analyze, converge, and checklist commands so security requirements are inventoried and tagged natively"
   author: "hupe1980"
   repository: "https://github.com/hupe1980/spec-kit-threatspec"

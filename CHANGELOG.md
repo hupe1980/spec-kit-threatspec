@@ -4,6 +4,26 @@ All notable changes to the ThreatSpec extension are documented here. The format 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-27
+
+### Added
+
+- `site/`: a [Zola](https://www.getzola.org/) static site (landing page + docs) published to GitHub Pages at https://hupe1980.github.io/spec-kit-threatspec/ by a new `pages.yml` workflow. It replaces the unstyled `docs/` folder and carries the same pages: methodology, the threat-model format reference, workflow integration, design and roadmap, the publishing checklist, and ThreatSpec's own threat model.
+- Configuration reference page: every key, its default, what reads it, and the merge order.
+
+### Changed
+
+- Documentation shows commands in the hyphenated skills form (`/speckit-threatspec-model`) used by Claude Code, Copilot, Cursor and most other agents; the README explains the dotted form (`/speckit.threatspec.model`) that opencode, gemini and qwen use. Command bodies still use `__SPECKIT_COMMAND_*__` tokens, and a test now rejects either literal form in them.
+- README, `config-template.yml`, and `examples/README.md` link to the documentation site instead of `docs/`, and the `documentation` URL in `catalog.json` points to the site instead of the README.
+- `.extensionignore` excludes `site/` from installs, in place of `docs/`.
+- SARIF output reports tool version `0.2.0`.
+
+### Fixed
+
+- `config-template.yml` said any `SPECKIT_THREATSPEC_<SECTION>_<KEY>` variable overrides config. Only `SPECKIT_THREATSPEC_ENFORCEMENT` and `SPECKIT_THREATSPEC_PROFILES` are read, and the comment now says so.
+
+## [0.1.0] - 2026-09-21
+
 ### Added
 
 **Commands**
@@ -43,3 +63,7 @@ All notable changes to the ThreatSpec extension are documented here. The format 
 - `docs/`: methodology, threat-model format reference, workflow integration, design and roadmap, publishing checklist, and ThreatSpec's own threat model.
 - `examples/rag-assistant`: a complete first-pass model produced by the model command from a bare spec, with rendered view, check report, and coverage table, kept valid by tests.
 - Test suite covering the manifest, schema, checks, merge, render, convergence, and the shipped example; CI on Linux and Windows across Python 3.11 and 3.13.
+
+[Unreleased]: https://github.com/hupe1980/spec-kit-threatspec/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/hupe1980/spec-kit-threatspec/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/hupe1980/spec-kit-threatspec/releases/tag/v0.1.0

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set docs = get_section(path="docs/_index.md") %}
+<div class="wrap docs-layout">
+  <aside class="docs-nav" aria-label="Documentation">
+    <p class="docs-nav__title"><a href="{{ docs.permalink }}">Documentation</a></p>
+    <ul>
+      {% for p in docs.pages %}
+      <li{% if p.permalink == page.permalink %} class="is-active"{% endif %}>
+        <a href="{{ p.permalink }}"{% if p.permalink == page.permalink %} aria-current="page"{% endif %}>{{ p.title }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </aside>
+  <article class="docs-content">
+    <h1>{{ page.title }}</h1>
+    <div class="prose">{{ page.content | safe }}</div>
+    <p class="docs-edit"><a href="{{ config.extra.edit_base }}/{{ page.relative_path }}" rel="noopener" target="_blank">Edit this page on GitHub</a></p>
+    <nav class="docs-pager" aria-label="Page navigation">
+      {% if page.higher %}<a class="docs-pager__prev" href="{{ page.higher.permalink }}">← {{ page.higher.title }}</a>{% else %}<span></span>{% endif %}
+      {% if page.lower %}<a class="docs-pager__next" href="{{ page.lower.permalink }}">{{ page.lower.title }} →</a>{% endif %}
+    </nav>
+  </article>
+</div>
+{% endblock %}

@@ -1,4 +1,9 @@
-# `threat-model.yaml` reference
++++
+title = "threat-model.yaml reference"
+description = "Field-by-field reference for threat-model.yaml: the OTM-compatible schema, identifiers, threats, mitigations, requirements, verification, decisions, and reference rules."
+weight = 20
+template = "docs-page.html"
++++
 
 `threat-model.yaml` is the canonical, machine-readable threat model of one feature. It is a valid [Open Threat Model](https://github.com/iriusrisk/OpenThreatModel) 0.2 document extended with four ThreatSpec keys. The JSON Schema is `schemas/threat-model.schema.json`; the engine validates against it and against the reference rules below on every write.
 

@@ -1,30 +1,35 @@
-# Workflow integration
++++
+title = "Workflow integration"
+description = "How ThreatSpec's three commands and seven lifecycle hooks fit into the Spec Kit workflow, the companion preset and workflow, and CI integration."
+weight = 30
+template = "docs-page.html"
++++
 
 ThreatSpec adds three commands to the Spec Kit lifecycle. Nothing changes until you invoke one or enable a hook.
 
 ```text
-/speckit.specify              spec.md
+/speckit-specify                        spec.md
         ↓
-/speckit.threatspec.model     threat-model.yaml + threat-model.md + SR-### block in spec.md
+/speckit-threatspec-model               threat-model.yaml + threat-model.md + SR-### block in spec.md
         ↓
-/speckit.plan                 plan.md (sees the security requirements)
+/speckit-plan                           plan.md (sees the security requirements)
         ↓
-/speckit.threatspec.model     --from-plan: components, data flows, trust zones
+/speckit-threatspec-model --from-plan   components, data flows, trust zones
         ↓
-/speckit.tasks                tasks.md (security tasks tagged [SR-###])
+/speckit-tasks                          tasks.md (security tasks tagged [SR-###])
         ↓
-/speckit.threatspec.check     gap report
+/speckit-threatspec-check               gap report
         ↓
-/speckit.implement            code + tests
+/speckit-implement                      code + tests
         ↓
-/speckit.threatspec.converge  evidence-based verification, remediation tasks
+/speckit-threatspec-converge            evidence-based verification, remediation tasks
         ↓
-/speckit.converge             core convergence completes the appended tasks
+/speckit-converge                       core convergence completes the appended tasks
 ```
 
 ## Why two model passes
 
-After `/speckit.specify` the model captures **what to protect**: actors, trust zones, assets, and the threats visible from user stories and requirements. After `/speckit.plan` the second pass attaches threats to **where attacks land**: components, data flows, boundary crossings, tools. Both passes are incremental; ids, statuses, decisions, and verification history survive.
+After `/speckit-specify` the model captures **what to protect**: actors, trust zones, assets, and the threats visible from user stories and requirements. After `/speckit-plan` the second pass attaches threats to **where attacks land**: components, data flows, boundary crossings, tools. Both passes are incremental; ids, statuses, decisions, and verification history survive.
 
 ## Hooks
 
@@ -72,7 +77,7 @@ Upload the SARIF file with `github/codeql-action/upload-sarif` to see findings i
 The repository also ships a composite GitHub Action (`action.yml`) that runs the check, uploads SARIF under the `threatspec` category, and fails the job on HIGH/CRITICAL:
 
 ```yaml
-- uses: hupe1980/spec-kit-threatspec@v0.1.0
+- uses: hupe1980/spec-kit-threatspec@v0.2.0
   with:
     feature-dir: specs/007-rag-assistant
     strict: "false"          # "true" also fails on MEDIUM

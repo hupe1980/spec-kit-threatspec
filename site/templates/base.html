@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {%- set site_desc = config.description -%}
+  {%- if page and page.description -%}{%- set page_desc = page.description -%}
+  {%- elif section and section.description -%}{%- set page_desc = section.description -%}
+  {%- else -%}{%- set page_desc = site_desc -%}{%- endif -%}
+  {%- if page -%}{%- set page_title = page.title -%}
+  {%- elif section and section.title -%}{%- set page_title = section.title -%}
+  {%- else -%}{%- set page_title = "" -%}{%- endif -%}
+  {%- if page_title and page_title != config.title -%}
+    {%- set full_title = page_title ~ " · " ~ config.title -%}
+  {%- else -%}
+    {%- set full_title = config.title ~ " — " ~ config.extra.tagline -%}
+  {%- endif -%}
+  {%- if page -%}{%- set page_url = page.permalink -%}
+  {%- elif section -%}{%- set page_url = section.permalink -%}
+  {%- else -%}{%- set page_url = config.base_url ~ "/" -%}{%- endif -%}
+  <title>{{ full_title }}</title>
+  <meta name="description" content="{{ page_desc }}">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="canonical" href="{{ page_url | safe }}">
+  <link rel="icon" type="image/svg+xml" href="{{ get_url(path="favicon.svg") }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ get_url(path="favicon.png") }}">
+  <link rel="apple-touch-icon" href="{{ get_url(path="favicon.png") }}">
+  <link rel="sitemap" type="application/xml" href="{{ get_url(path="sitemap.xml") }}">
+  <link rel="stylesheet" href="{{ get_url(path="css/style.css") }}">
+
+  <!-- Open Graph -->
+  <meta property="og:site_name" content="{{ config.title }}">
+  <meta property="og:title" content="{{ page_title | default(value=config.title) }}">
+  <meta property="og:description" content="{{ page_desc }}">
+  <meta property="og:type" content="{% if page %}article{% else %}website{% endif %}">
+  <meta property="og:url" content="{{ page_url | safe }}">
+  <meta property="og:image" content="{{ get_url(path="og-image.png") }}">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page_title | default(value=config.title) }}">
+  <meta name="twitter:description" content="{{ page_desc }}">
+  <meta name="twitter:image" content="{{ get_url(path="og-image.png") }}">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "name": "{{ config.title }}",
+    "description": "{{ site_desc }}",
+    "codeRepository": "{{ config.extra.repo }}",
+    "programmingLanguage": "Python",
+    "license": "https://opensource.org/licenses/MIT",
+    "author": {
+      "@type": "Person",
+      "name": "{{ config.extra.author }}"
+    }
+  }
+  </script>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap site-header__inner">
+      <a class="brand" href="{{ get_url(path="/") }}">
+        <span class="brand__mark" aria-hidden="true">🛡️</span>
+        <span class="brand__name">ThreatSpec</span>
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="{{ get_url(path="/") }}">Home</a>
+        <a href="{{ get_url(path="docs/") }}">Docs</a>
+        <a href="{{ get_url(path="docs/workflow/") }}">Workflow</a>
+        <a href="{{ config.extra.repo }}/tree/main/examples">Examples</a>
+        <a class="site-nav__gh" href="{{ config.extra.repo }}" rel="noopener" target="_blank">
+          GitHub<span class="visually-hidden"> (opens in a new tab)</span>
+        </a>
+      </nav>
+      <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav">
+        <span></span><span></span><span></span>
+        <span class="visually-hidden">Menu</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap site-footer__inner">
+      <p>MIT Licensed · <a href="{{ config.extra.repo }}">hupe1980/spec-kit-threatspec</a></p>
+      <p class="site-footer__muted">Built with <a href="https://www.getzola.org/" rel="noopener" target="_blank">Zola</a>. Not affiliated with GitHub Spec Kit.</p>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById("nav-toggle").addEventListener("click", function () {
+      var nav = document.querySelector(".site-nav");
+      var expanded = this.getAttribute("aria-expanded") === "true";
+      this.setAttribute("aria-expanded", String(!expanded));
+      nav.classList.toggle("is-open");
+    });
+  </script>
+</body>
+</html>

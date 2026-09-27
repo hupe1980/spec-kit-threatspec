@@ -1,4 +1,9 @@
-# Methodology
++++
+title = "Methodology"
+description = "How ThreatSpec applies Shostack's four questions, STRIDE plus AI/ML profiles, and evidence-based verification to a Spec Kit feature."
+weight = 10
+template = "docs-page.html"
++++
 
 ThreatSpec applies Shostack's four questions to a Spec Kit feature and keeps the answers connected as the feature moves from specification to verified implementation.
 
@@ -6,7 +11,7 @@ ThreatSpec applies Shostack's four questions to a Spec Kit feature and keeps the
 |---|---|---|
 | What are we working on? | `spec.md`, `plan.md` → actors, trust zones, assets, components, data flows in `threat-model.yaml` | Spec Kit, then the model command |
 | What can go wrong? | `threats[]` with STRIDE category, profile technique, likelihood, impact, evidence source | the model command (LLM) |
-| What are we going to do about it? | `mitigations[]` → `requirements[]` (`SR-###`) → tasks in `tasks.md` | the model command, then `/speckit.tasks` |
+| What are we going to do about it? | `mitigations[]` → `requirements[]` (`SR-###`) → tasks in `tasks.md` | the model command, then `/speckit-tasks` |
 | Did we do a good job? | `verification[]`, convergence report, appended remediation tasks | the converge command |
 
 ## STRIDE per element, plus profiles
@@ -28,7 +33,7 @@ For each technique and element the model records exactly one of:
 | `no-threat-detected` | the surface exists, the elements were evaluated, nothing concrete was found | `threatspec.dispositions[]` |
 | `not-applicable` | the required surface is structurally absent | `threatspec.dispositions[]` with `reason` |
 
-A fourth marker, `needs-clarification`, is a threat whose name starts with `[NEEDS CLARIFICATION: …]`; it exists so that spec gaps surface in checks and in `/speckit.clarify` rather than being silently filled in.
+A fourth marker, `needs-clarification`, is a threat whose name starts with `[NEEDS CLARIFICATION: …]`; it exists so that spec gaps surface in checks and in `/speckit-clarify` rather than being silently filled in.
 
 ## Severity
 

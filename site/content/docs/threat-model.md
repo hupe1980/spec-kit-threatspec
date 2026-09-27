@@ -1,4 +1,9 @@
-# Threat model of ThreatSpec itself
++++
+title = "Threat model of ThreatSpec itself"
+description = "ThreatSpec's own threat model: what it protects, ten threats it accepts running as an agent with repository read/write access, and their mitigation status."
+weight = 60
+template = "docs-page.html"
++++
 
 ThreatSpec runs inside a coding agent with read/write access to a repository. This is its own threat model, in the same shape it asks of others.
 

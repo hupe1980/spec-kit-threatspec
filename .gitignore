@@ -6,3 +6,6 @@ __pycache__/
 
 # Local spec-kit config overrides
 *-config.local.yml
+
+# Zola build output
+/site/public/

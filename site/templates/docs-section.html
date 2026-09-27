@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="wrap docs-layout">
+  <aside class="docs-nav" aria-label="Documentation">
+    <p class="docs-nav__title">Documentation</p>
+    <ul>
+      {% for p in section.pages %}
+      <li><a href="{{ p.permalink }}">{{ p.title }}</a></li>
+      {% endfor %}
+    </ul>
+  </aside>
+  <article class="docs-content">
+    <h1>{{ section.title }}</h1>
+    <div class="prose">{{ section.content | safe }}</div>
+    <ul class="docs-index">
+      {% for p in section.pages %}
+      <li>
+        <a href="{{ p.permalink }}"><strong>{{ p.title }}</strong></a>
+        {% if p.description %}<span> — {{ p.description }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </article>
+</div>
+{% endblock %}

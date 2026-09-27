@@ -1,5 +1,5 @@
 # ThreatSpec threat model — canonical, machine-readable, OTM-compatible.
-# Generated and maintained by /speckit.threatspec.model; validated by schemas/threat-model.schema.json.
+# Generated and maintained by /speckit-threatspec-model; validated by schemas/threat-model.schema.json.
 # Human-owned fields survive regeneration: threats[].attributes.{status,severity_override,notes},
 # mitigations[].attributes.status, requirements[].tasks, verification[], decisions[].
 
@@ -60,5 +60,5 @@ requirements: []
 #     - {given: ..., when: ..., then: ...}
 #   tasks: []                                   # T### ids, filled from tasks.md
 
-verification: []             # appended by /speckit.threatspec.converge; never rewritten
+verification: []             # appended by /speckit-threatspec-converge; never rewritten
 decisions: []                # [{id: decision.x, threat: threat.x, status: accepted, owner: "@who", rationale: "...", expires: YYYY-MM-DD}]
