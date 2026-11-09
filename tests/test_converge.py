@@ -224,3 +224,48 @@ def test_task_linking_requires_bracket_tags(engine, rag_repo, rag_feature):
     cov = engine.coverage(engine.Paths(rag_repo, rag_feature), engine.load_config(rag_repo))
     reqs = {r["id"]: r for r in cov["requirements"]}
     assert "T030" not in " ".join(reqs["SR-001"]["tasks"]) and "T031" in " ".join(reqs["SR-001"]["tasks"])
+
+
+def _converge_with_decision(engine, rag_repo, rag_feature, threat, expires, verified):
+    paths = engine.Paths(rag_repo, rag_feature)
+    cfg = engine.load_config(rag_repo)
+    model = engine.load_model(paths.model)
+    model["threatspec"]["sources"] = engine.sources_for(paths)
+    model["decisions"].append({"id": "decision.extra", "threat": threat, "status": "accepted", "owner": "@sec",
+                               "rationale": "accepted for this release", "expires": expires})
+    paths.model.write_text(engine.dump_yaml(model), encoding="utf-8")
+    vf = rag_feature / "security" / "verdicts.yaml"
+    vf.parent.mkdir(parents=True)
+    vf.write_text(yaml.safe_dump({"verdicts": [
+        {"requirement": rid, "verdict": "verified", "method": "test", "evidence": f"tests/x.py::{rid}", "result": "pass"}
+        for rid in verified]}), encoding="utf-8")
+    tasks_before = paths.tasks.read_text(encoding="utf-8")
+    return engine.converge_apply(paths, cfg, vf, commit="x"), paths, tasks_before
+
+
+def test_unverified_requirement_covered_by_decision_does_not_block(engine, rag_repo, rag_feature):
+    # SR-002 only mitigates threat.inference-exhaustion; accepting that risk covers SR-002.
+    summary, paths, tasks_before = _converge_with_decision(
+        engine, rag_repo, rag_feature, "threat.inference-exhaustion", "2099-01-01", ("SR-001", "SR-003"))
+    assert summary["status"] == "CONVERGED"
+    assert summary["requirements"]["risk_accepted"] == ["SR-002"]
+    assert summary["requirements"]["missing"] == ["SR-002"]  # the verdict itself is still reported honestly
+    assert summary["appended_tasks"] == []
+    assert paths.tasks.read_text(encoding="utf-8") == tasks_before
+
+
+def test_partial_decision_coverage_still_blocks(engine, rag_repo, rag_feature):
+    # SR-003 mitigates threat.unconfirmed-ticket AND threat.rag-poisoning; accepting only one is not enough.
+    summary, _, _ = _converge_with_decision(
+        engine, rag_repo, rag_feature, "threat.unconfirmed-ticket", "2099-01-01", ("SR-001", "SR-002"))
+    assert summary["status"] == "NOT CONVERGED"
+    assert summary["requirements"]["risk_accepted"] == []
+    assert summary["appended_tasks"]
+
+
+def test_expired_decision_does_not_cover_requirement(engine, rag_repo, rag_feature):
+    summary, _, _ = _converge_with_decision(
+        engine, rag_repo, rag_feature, "threat.inference-exhaustion", "2000-01-01", ("SR-001", "SR-003"))
+    assert summary["status"] == "NOT CONVERGED"
+    assert summary["requirements"]["risk_accepted"] == []
+    assert "decision.extra" in summary["expired_decisions"]

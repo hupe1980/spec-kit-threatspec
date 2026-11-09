@@ -4,6 +4,13 @@ All notable changes to the ThreatSpec extension are documented here. The format 
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-09
+
+### Fixed
+
+- `converge-apply` ignored risk decisions for security requirements: an unverified `SR-###` always blocked convergence and got a remediation task, contrary to the documented Definition of Converged. An `SR-###` whose linked threats all carry an unexpired `accepted`/`transferred` decision no longer blocks, gets no task, and is listed under `requirements.risk_accepted` (shown as "covered by decision" in the report and scoreboard). Partial coverage and expired decisions still block.
+- SARIF output reports tool version `0.2.1`.
+
 ## [0.2.0] - 2026-09-27
 
 ### Added
@@ -64,6 +71,7 @@ All notable changes to the ThreatSpec extension are documented here. The format 
 - `examples/rag-assistant`: a complete first-pass model produced by the model command from a bare spec, with rendered view, check report, and coverage table, kept valid by tests.
 - Test suite covering the manifest, schema, checks, merge, render, convergence, and the shipped example; CI on Linux and Windows across Python 3.11 and 3.13.
 
-[Unreleased]: https://github.com/hupe1980/spec-kit-threatspec/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/hupe1980/spec-kit-threatspec/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/hupe1980/spec-kit-threatspec/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/hupe1980/spec-kit-threatspec/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/hupe1980/spec-kit-threatspec/releases/tag/v0.1.0

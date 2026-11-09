@@ -77,7 +77,7 @@ Upload the SARIF file with `github/codeql-action/upload-sarif` to see findings i
 The repository also ships a composite GitHub Action (`action.yml`) that runs the check, uploads SARIF under the `threatspec` category, and fails the job on HIGH/CRITICAL:
 
 ```yaml
-- uses: hupe1980/spec-kit-threatspec@v0.2.0
+- uses: hupe1980/spec-kit-threatspec@v0.2.1
   with:
     feature-dir: specs/007-rag-assistant
     strict: "false"          # "true" also fails on MEDIUM

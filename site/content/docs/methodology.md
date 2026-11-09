@@ -61,7 +61,7 @@ Not every threat gets mitigated. `decisions[]` records `accepted` or `transferre
 
 The converge command collects facts per requirement: task state, test files that reference the SR id, touchpoint existence, optional verifier output. The agent then judges only from that evidence and must supply a pointer for `verified`; the engine rejects `verified` without one. Verification entries are append-only and carry a timestamp and commit.
 
-**Definition of Converged**: no open threat at or above `severity.block_on`; every `SR-###` verified or covered by an unexpired decision; no expired decisions; no drift between the model and `spec.md`/`plan.md`.
+**Definition of Converged**: no open threat at or above `severity.block_on`; every `SR-###` verified or covered by an unexpired decision (every threat the SR mitigates has an unexpired `accepted`/`transferred` decision; partial coverage does not count); no expired decisions; no drift between the model and `spec.md`/`plan.md`.
 
 ## Untrusted content
 
