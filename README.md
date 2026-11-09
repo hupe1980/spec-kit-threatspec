@@ -43,7 +43,7 @@ Asset ─▶ Threat ─▶ Mitigation ─▶ Security Requirement (SR-###)
 
 ```bash
 # From a release archive (the CLI asks you to confirm the untrusted URL)
-specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.2.0.zip
+specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.2.1.zip
 
 # Or register this repository's catalog once, then install by name
 specify extension catalog add https://raw.githubusercontent.com/hupe1980/spec-kit-threatspec/main/catalog.json --name threatspec --install-allowed
@@ -106,7 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hupe1980/spec-kit-threatspec@v0.2.0
+      - uses: hupe1980/spec-kit-threatspec@v0.2.1
         with:
           feature-dir: specs/007-rag-assistant   # optional; auto-detected from SPECIFY_FEATURE or the branch
           strict: "false"

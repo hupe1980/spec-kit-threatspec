@@ -126,9 +126,9 @@ verdicts:
 
 If `$ARGUMENTS` named `--only SR-…`, pass the same list as `--only SR-003,SR-007`; requirements outside that scope keep their last recorded verdict instead of being reported as missing.
 
-The engine appends `verification[]` entries (timestamp, commit), rolls threat status up to `mitigated` when all linked requirements are verified, checks open blocking threats, expired decisions, and source drift (including sources that were never hashed), writes `FEATURE_DIR/security/convergence-report.md` and `.json`, re-renders `threat-model.md`, and appends one task per gap to `tasks.md` under `## Phase N: Security Convergence` (tagged `[SR-###]`, naming the touchpoints). It exits `0` when converged and `1` otherwise.
+The engine appends `verification[]` entries (timestamp, commit), rolls threat status up to `mitigated` when all linked requirements are verified, checks open blocking threats, expired decisions, and source drift (including sources that were never hashed), writes `FEATURE_DIR/security/convergence-report.md` and `.json`, re-renders `threat-model.md`, and appends one task per gap to `tasks.md` (requirements covered by a decision are reported as `risk_accepted` and get no task) under `## Phase N: Security Convergence` (tagged `[SR-###]`, naming the touchpoints). It exits `0` when converged and `1` otherwise.
 
-**Definition of Converged**: no open threat at or above `severity.block_on`; every `SR-###` verified or covered by an unexpired decision; no expired decisions; no drift between the model and `spec.md`/`plan.md`.
+**Definition of Converged**: no open threat at or above `severity.block_on`; every `SR-###` verified or covered by an unexpired decision (every threat the SR mitigates has an unexpired `accepted`/`transferred` decision; partial coverage does not count); no expired decisions; no drift between the model and `spec.md`/`plan.md`.
 
 ### 5. Report
 

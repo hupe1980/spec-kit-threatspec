@@ -826,7 +826,7 @@ def report_sarif(findings: List[Finding], paths: Paths) -> str:
         })
     sarif = {
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json", "version": "2.1.0",
-        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.2.0",
+        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.2.1",
                                        "informationUri": "https://github.com/hupe1980/spec-kit-threatspec",
                                        "rules": list(rules.values())}},
                   "results": results}],
@@ -1396,7 +1396,19 @@ def converge_apply(paths: Paths, cfg: Dict[str, Any], verdicts_path: Path, commi
                      if (t.get("attributes") or {}).get("status") == "open"
                      and (((t.get("attributes") or {}).get("severity_override") or {}).get("level") or (t.get("attributes") or {}).get("severity")) in block_on]
     expired = [d["id"] for d in model.get("decisions") or [] if str(d.get("expires", "9999")) < str(today())]
-    unverified = [r for r, v in results.items() if v.get("verdict") != "verified"]
+    # An SR is covered by a decision when every threat it addresses (via its mitigations) has an
+    # unexpired accepted/transferred decision. Partial coverage or an expired decision never covers.
+    live_decided = {d.get("threat") for d in model.get("decisions") or []
+                    if d.get("id") not in expired and d.get("status") in ("accepted", "transferred")}
+    mit_threats = {m.get("id"): (m.get("attributes") or {}).get("threats") or [] for m in mits}
+
+    def covered_by_decision(rid: str) -> bool:
+        threats = {t for m in reqs[rid].get("mitigations") or [] for t in mit_threats.get(m, [])}
+        return bool(threats) and threats <= live_decided
+
+    not_verified = [r for r, v in results.items() if v.get("verdict") != "verified"]
+    risk_accepted = sorted(r for r in not_verified if covered_by_decision(r))
+    unverified = [r for r in not_verified if r not in risk_accepted]
     recorded_hashes = {x.get("path"): x.get("sha256") for x in (model.get("threatspec") or {}).get("sources") or []}
     drift = [s["path"] + ("" if recorded_hashes.get(s["path"]) else " (never hashed: re-run the model command)")
              for s in sources_for(paths) if recorded_hashes.get(s["path"]) != s["sha256"]]
@@ -1446,7 +1458,8 @@ def converge_apply(paths: Paths, cfg: Dict[str, Any], verdicts_path: Path, commi
                          "verified": sorted(r for r, v in results.items() if v.get("verdict") == "verified"),
                          "implemented_unverified": sorted(r for r, v in results.items() if v.get("verdict") == "implemented-unverified"),
                          "partial": sorted(r for r, v in results.items() if v.get("verdict") == "partial"),
-                         "missing": sorted(r for r, v in results.items() if v.get("verdict") == "missing")},
+                         "missing": sorted(r for r, v in results.items() if v.get("verdict") == "missing"),
+                         "risk_accepted": risk_accepted},
         "expired_decisions": expired, "drift": drift, "appended_tasks": appended, "already_open_tasks_for": already_open,
         "verdicts": {r: {k: v.get(k) for k in ("verdict", "method", "evidence", "justification")} for r, v in results.items()},
     }
@@ -1468,6 +1481,7 @@ def convergence_md(s: Dict[str, Any]) -> str:
          f"| implemented, unverified | {len(r['implemented_unverified'])} {', '.join(r['implemented_unverified'])} |",
          f"| partial | {len(r['partial'])} {', '.join(r['partial'])} |",
          f"| missing | {len(r['missing'])} {', '.join(r['missing'])} |",
+         f"| covered by decision (not blocking) | {len(r.get('risk_accepted', []))} {', '.join(r.get('risk_accepted', []))} |",
          f"| Expired decisions | {len(s['expired_decisions'])} {', '.join(s['expired_decisions'])} |",
          f"| Source drift | {', '.join(s['drift']) or 'none'} |",
          "", f"**Status: {s['status']}**", ""]
@@ -1490,7 +1504,8 @@ def scoreboard(s: Dict[str, Any]) -> str:
              f"  implemented, unverified      {len(r['implemented_unverified']):>4}   {' '.join(r['implemented_unverified'])}".rstrip(),
              f"  partial                      {len(r['partial']):>4}   {' '.join(r['partial'])}".rstrip(),
              f"  missing                      {len(r['missing']):>4}   {' '.join(r['missing'])}".rstrip(),
-             f"Expired decisions              {len(s['expired_decisions']):>4}",
+             f"  covered by decision          {len(r.get('risk_accepted', [])):>4}   {' '.join(r.get('risk_accepted', []))}".rstrip(),
+             f"Expired decisions             {len(s['expired_decisions']):>4}",
              f"Source drift                   {'yes' if s['drift'] else 'no':>4}", "",
              f"Status: {s['status']}"]
     if s["appended_tasks"]:
