@@ -225,3 +225,62 @@ def test_reported_paths_use_forward_slashes(engine, rag_repo, rag_feature):
     sarif = json.loads(engine.report_sarif(findings, paths))
     uris = [r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] for r in sarif["runs"][0]["results"]]
     assert uris and all("\\" not in u for u in uris)
+
+
+def test_task_lines_accept_bold_waiting_and_suffixed_ids(engine, tmp_path):
+    tasks = tmp_path / "tasks.md"
+    tasks.write_text("\n".join([
+        "- [ ] T001 [SR-001] plain",
+        "- [x] **T002** [SR-002] bold, done",
+        "- [~] T003 [SR-003] in progress",
+        "- [ ] **T006a** [SR-004] inserted, bold",
+        "- [ ] T007ab not a task id",
+        "- [ ] T0 too short",
+    ]) + "\n", encoding="utf-8")
+    parsed = {t["id"]: t for t in engine.parse_tasks(tasks)}
+    assert list(parsed) == ["T001", "T002", "T003", "T006a"]
+    assert parsed["T002"]["done"] is True and parsed["T002"]["srs"] == ["SR-002"]
+    assert parsed["T002"]["text"] == "[SR-002] bold, done"  # closing ** is not part of the text
+    assert parsed["T003"]["done"] is False                  # [~] is still open
+    assert parsed["T006a"]["srs"] == ["SR-004"]
+
+
+def test_bold_task_ids_link_requirements(engine, rag_repo, rag_feature):
+    tasks = rag_feature / "tasks.md"
+    text = tasks.read_text(encoding="utf-8")
+    for n in ("T011", "T012", "T013", "T021"):
+        text = text.replace(f"] {n} ", f"] **{n}** ")
+    tasks.write_text(text, encoding="utf-8")
+    findings, _, _ = run_check(engine, rag_repo, rag_feature)
+    assert "C5" not in checks(findings)
+
+
+def _with_baseline(rag_repo, rag_feature, baseline_reqs):
+    baseline = rag_repo / ".specify" / "memory" / "threat-model.yaml"
+    baseline.parent.mkdir(parents=True, exist_ok=True)
+    baseline.write_text(yaml.safe_dump({"otmVersion": "0.2.0", "project": {"id": "base", "name": "Base"},
+                                        "requirements": baseline_reqs}), encoding="utf-8")
+    model = rag_feature / "threat-model.yaml"
+    model.write_text(model.read_text(encoding="utf-8").replace("extends: null", "extends: ../../.specify/memory/threat-model.yaml"),
+                     encoding="utf-8")
+    return model
+
+
+def test_feature_sr_reusing_baseline_id_is_c2(engine, rag_repo, rag_feature, capsys):
+    model = _with_baseline(rag_repo, rag_feature, [
+        {"id": "SR-001", "statement": "Baseline obligation", "mitigations": []},
+        {"id": "SR-009", "statement": "Another baseline obligation", "mitigations": []},
+    ])
+    findings, _, _ = run_check(engine, rag_repo, rag_feature)
+    c2 = [f for f in findings if f.check == "C2"]
+    assert len(c2) == 1 and c2[0].severity == "critical"
+    assert "SR-001" in c2[0].summary and "SR-009" in c2[0].summary  # names the clash and the highest baseline id
+    assert engine.main(["validate", str(model)]) == 1
+    assert "redefines baseline requirement SR-001" in capsys.readouterr().out
+
+
+def test_feature_sr_after_baseline_numbering_is_clean(engine, rag_repo, rag_feature):
+    model = _with_baseline(rag_repo, rag_feature, [{"id": "SR-900", "statement": "Baseline", "mitigations": []}])
+    findings, _, _ = run_check(engine, rag_repo, rag_feature)
+    assert "C2" not in checks(findings)
+    assert engine.main(["validate", str(model)]) == 0

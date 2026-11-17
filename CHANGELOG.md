@@ -4,6 +4,16 @@ All notable changes to the ThreatSpec extension are documented here. The format 
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-17
+
+### Fixed
+
+- Task parsing missed bold task ids (`- [ ] **T001** …`), in-progress checkboxes (`- [~]`), and inserted ids with a letter suffix (`T006a`). When ids were bold, no `[SR-###]` tag was seen, so every requirement got a false C5 ("no task"). These forms are now recognised; `[~]` counts as open.
+- `converge-apply` computes the next task number from the leading digits, so a suffixed id such as `T006a` counts as 6 and cannot crash the append.
+- `converge-apply` writes `threat-model.yaml` after appending remediation tasks, so a failure while appending leaves the model untouched instead of half-applied.
+- A feature requirement that reuses an `SR-###` id from the baseline silently replaced the baseline requirement in the merged view. `validate`, `merge`, and `check` (as C2, critical) now reject the clash and name the baseline's highest id to continue from.
+- SARIF output reports tool version `0.2.2`.
+
 ## [0.2.1] - 2026-11-09
 
 ### Fixed
@@ -71,7 +81,8 @@ All notable changes to the ThreatSpec extension are documented here. The format 
 - `examples/rag-assistant`: a complete first-pass model produced by the model command from a bare spec, with rendered view, check report, and coverage table, kept valid by tests.
 - Test suite covering the manifest, schema, checks, merge, render, convergence, and the shipped example; CI on Linux and Windows across Python 3.11 and 3.13.
 
-[Unreleased]: https://github.com/hupe1980/spec-kit-threatspec/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/hupe1980/spec-kit-threatspec/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/hupe1980/spec-kit-threatspec/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/hupe1980/spec-kit-threatspec/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/hupe1980/spec-kit-threatspec/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/hupe1980/spec-kit-threatspec/releases/tag/v0.1.0

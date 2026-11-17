@@ -87,7 +87,7 @@ The checks:
 | ID | Check |
 |---|---|
 | C1 | Schema validation |
-| C2 | Dangling references |
+| C2 | Dangling references; feature `SR-###` reusing a baseline id |
 | C3 | Threat with neither mitigation nor decision |
 | C4 | Mitigation without SR-### |
 | C5 | SR-### without a task in tasks.md |
