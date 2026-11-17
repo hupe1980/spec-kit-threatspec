@@ -54,7 +54,10 @@ MATRIX_DEFAULT = {
     "low": {"high": "medium", "medium": "low", "low": "low"},
 }
 
-TASK_RE = re.compile(r"^\s*-\s*\[( |x|X)\]\s*(T\d{3,})\b(.*)$")
+# A tasks.md checkbox line: `- [ ] T001 …`, also `- [x]`, `- [~]` (in progress, counts as open),
+# bold ids (`**T001**`), and inserted ids with a letter suffix (`T006a`).
+TASK_RE = re.compile(r"^\s*-\s*\[( |x|X|~)\]\s*\*{0,2}(T\d{3,}[a-z]?)\*{0,2}(?![\w*])(.*)$")
+TASK_NUM_RE = re.compile(r"\bT(\d{3,})[a-z]?\b")
 SR_RE = re.compile(r"\bSR-\d{3,}\b")
 SR_TAG_RE = re.compile(r"\[((?:SR-\d{3,})(?:\s*,\s*SR-\d{3,})*)\]")  # [SR-001] or [SR-001, SR-002]; prose mentions do not count
 ENTITY_RE = re.compile(r"^\s*-\s*\*\*([^*]+)\*\*\s*:", re.MULTILINE)
@@ -355,6 +358,20 @@ def merged_view(model: Dict[str, Any], baseline: Optional[Dict[str, Any]]) -> Di
     return view
 
 
+def baseline_conflicts(model: Dict[str, Any], baseline: Optional[Dict[str, Any]]) -> List[str]:
+    """Feature requirements that reuse a baseline SR id. SR ids are unique across the project: a clash would
+    silently replace the baseline requirement in the merged view and re-point the baseline's references."""
+    if not baseline:
+        return []
+    base_ids = set(index_by_id(baseline.get("requirements")))
+    clashes = sorted(set(index_by_id(model.get("requirements"))) & base_ids)
+    if not clashes:
+        return []
+    highest = max((int(m.group(1)) for i in base_ids if (m := re.match(r"SR-(\d+)$", str(i)))), default=0)
+    return [f"requirements[{rid}] redefines baseline requirement {rid}; feature SR ids continue after the "
+            f"baseline's highest (SR-{highest:03d})" for rid in clashes]
+
+
 def index_by_id(items: Optional[List[Dict[str, Any]]]) -> Dict[str, Dict[str, Any]]:
     return {i["id"]: i for i in (items or []) if isinstance(i, dict) and "id" in i}
 
@@ -580,6 +597,8 @@ def run_checks(paths: Paths, cfg: Dict[str, Any]) -> Tuple[List[Finding], Dict[s
     view = merged_view(model, baseline)
     for e in reference_errors(view):
         findings.append(Finding("C2", "critical", loc, e, "Point the reference at an existing id or add the entity"))
+    for e in baseline_conflicts(model, baseline):
+        findings.append(Finding("C2", "critical", loc, e, "Renumber the feature requirement (and its tags in tasks.md and tests)"))
 
     profiles = load_profiles((model.get("threatspec") or {}).get("profiles") or cfg.get("profiles") or ["stride"])
     levels, matrix = severity_matrix(profiles)
@@ -826,7 +845,7 @@ def report_sarif(findings: List[Finding], paths: Paths) -> str:
         })
     sarif = {
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json", "version": "2.1.0",
-        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.2.1",
+        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.2.2",
                                        "informationUri": "https://github.com/hupe1980/spec-kit-threatspec",
                                        "rules": list(rules.values())}},
                   "results": results}],
@@ -835,7 +854,7 @@ def report_sarif(findings: List[Finding], paths: Paths) -> str:
 
 
 CHECK_NAMES = {
-    "C1": "Schema validation", "C2": "Dangling reference", "C3": "Threat without mitigation or decision",
+    "C1": "Schema validation", "C2": "Dangling or conflicting reference", "C3": "Threat without mitigation or decision",
     "C4": "Mitigation without requirement", "C5": "Requirement without task", "C6": "Requirement without verification",
     "C7": "Incomplete or expired decision", "C8": "Spec entity missing from model", "C9": "Source drift",
     "C10": "Severity inconsistent with matrix", "C11": "Not-applicable disposition with surface present",
@@ -1299,7 +1318,8 @@ def next_phase_number(tasks_text: str) -> int:
 
 
 def next_task_id(tasks: List[Dict[str, Any]], tasks_text: str) -> int:
-    ids = [int(t["id"][1:]) for t in tasks] + [int(n) for n in re.findall(r"\bT(\d{3,})\b", tasks_text)]
+    """Next free task number; suffixed ids such as T006a count by their digits."""
+    ids = [int(TASK_NUM_RE.match(t["id"]).group(1)) for t in tasks] + [int(n) for n in TASK_NUM_RE.findall(tasks_text)]
     return (max(ids) + 1) if ids else 1
 
 
@@ -1414,8 +1434,6 @@ def converge_apply(paths: Paths, cfg: Dict[str, Any], verdicts_path: Path, commi
              for s in sources_for(paths) if recorded_hashes.get(s["path"]) != s["sha256"]]
     converged = not open_blocking and not unverified and not expired and not drift
 
-    write_text(paths.model, dump_yaml(model))
-
     # append remediation tasks — idempotent: a gap that already has an open convergence task is not duplicated
     appended: List[str] = []
     already_open: List[str] = []
@@ -1448,6 +1466,9 @@ def converge_apply(paths: Paths, cfg: Dict[str, Any], verdicts_path: Path, commi
             tid += 1
         if appended:
             paths.tasks.write_text(text.rstrip("\n") + "\n" + "\n".join(lines) + "\n", encoding="utf-8")
+
+    # Written after the tasks append: a failure above leaves the model untouched, so a re-run starts clean.
+    write_text(paths.model, dump_yaml(model))
 
     summary = {
         "feature": paths.feature.name if paths.feature else None, "commit": commit, "timestamp": stamp,
@@ -1550,8 +1571,9 @@ def cmd_init(args: argparse.Namespace) -> int:
 def cmd_validate(args: argparse.Namespace) -> int:
     path = Path(args.model)
     model = load_model(path)
+    baseline = load_baseline(model, path)
     errors = schema_validate(model)
-    errors += reference_errors(merged_view(model, load_baseline(model, path)))
+    errors += reference_errors(merged_view(model, baseline)) + baseline_conflicts(model, baseline)
     if args.json:
         print(json.dumps({"valid": not errors, "errors": errors}, indent=2))
     else:
@@ -1570,7 +1592,8 @@ def cmd_merge(args: argparse.Namespace) -> int:
     existing = load_model(p.model) if p.model.exists() else empty_model(p.feature.name, p.feature.name, cfg.get("profiles") or ["stride"], None)
     profiles = load_profiles((incoming.get("threatspec") or {}).get("profiles") or (existing.get("threatspec") or {}).get("profiles") or cfg.get("profiles") or ["stride"])
     merged, stats = merge_models(existing, incoming, p, profiles)
-    errors = schema_validate(merged) + reference_errors(merged_view(merged, load_baseline(merged, p.model)))
+    baseline = load_baseline(merged, p.model)
+    errors = schema_validate(merged) + reference_errors(merged_view(merged, baseline)) + baseline_conflicts(merged, baseline)
     if errors and not args.allow_invalid:
         for e in errors:
             print(f"ERROR: {e}", file=sys.stderr)

@@ -43,7 +43,7 @@ Asset ─▶ Threat ─▶ Mitigation ─▶ Security Requirement (SR-###)
 
 ```bash
 # From a release archive (the CLI asks you to confirm the untrusted URL)
-specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.2.1.zip
+specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.2.2.zip
 
 # Or register this repository's catalog once, then install by name
 specify extension catalog add https://raw.githubusercontent.com/hupe1980/spec-kit-threatspec/main/catalog.json --name threatspec --install-allowed
@@ -72,7 +72,7 @@ Requirements: Spec Kit ≥ 1.0.0, Python 3 with PyYAML (or [uv](https://docs.ast
 | ID | Check | Severity |
 |---|---|---|
 | C1 | Schema validation | 🔴 CRITICAL |
-| C2 | Dangling references | 🔴 CRITICAL |
+| C2 | Dangling references; feature `SR-###` reusing a baseline id | 🔴 CRITICAL |
 | C3 | Threat with neither mitigation nor decision | 🟠 HIGH / 🔴 CRITICAL |
 | C4 | Mitigation without `SR-###` | 🟠 HIGH |
 | C5 | `SR-###` without a task | 🟠 HIGH |
@@ -106,7 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hupe1980/spec-kit-threatspec@v0.2.1
+      - uses: hupe1980/spec-kit-threatspec@v0.2.2
         with:
           feature-dir: specs/007-rag-assistant   # optional; auto-detected from SPECIFY_FEATURE or the branch
           strict: "false"

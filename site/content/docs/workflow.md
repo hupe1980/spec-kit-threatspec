@@ -77,7 +77,7 @@ Upload the SARIF file with `github/codeql-action/upload-sarif` to see findings i
 The repository also ships a composite GitHub Action (`action.yml`) that runs the check, uploads SARIF under the `threatspec` category, and fails the job on HIGH/CRITICAL:
 
 ```yaml
-- uses: hupe1980/spec-kit-threatspec@v0.2.1
+- uses: hupe1980/spec-kit-threatspec@v0.2.2
   with:
     feature-dir: specs/007-rag-assistant
     strict: "false"          # "true" also fails on MEDIUM
@@ -93,7 +93,7 @@ Check C6 (requirement without verification) is phase-aware: LOW while no task fo
 
 ## Task linking
 
-A task counts for a requirement only when it carries the bracket tag `[SR-###]` (comma lists such as `[SR-001, SR-003]` are allowed) or is listed under `requirements[].tasks`. A prose mention like "SR-001 through SR-016" does not count, so ranges cannot produce false coverage.
+Task lines are `- [ ] T001 …`; the engine also accepts `- [x]` (done), `- [~]` (in progress, still open), bold ids (`**T001**`), and inserted ids with a letter suffix (`T006a`). A task counts for a requirement only when it carries the bracket tag `[SR-###]` (comma lists such as `[SR-001, SR-003]` are allowed) or is listed under `requirements[].tasks`. A prose mention like "SR-001 through SR-016" does not count, so ranges cannot produce false coverage.
 
 ## Re-running converge
 

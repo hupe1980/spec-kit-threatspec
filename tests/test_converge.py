@@ -269,3 +269,31 @@ def test_expired_decision_does_not_cover_requirement(engine, rag_repo, rag_featu
     assert summary["status"] == "NOT CONVERGED"
     assert summary["requirements"]["risk_accepted"] == []
     assert "decision.extra" in summary["expired_decisions"]
+
+
+def test_converge_apply_handles_suffixed_task_ids(engine, rag_repo, rag_feature):
+    paths = engine.Paths(rag_repo, rag_feature)
+    paths.tasks.write_text(paths.tasks.read_text(encoding="utf-8").replace(
+        "- [x] T021", "- [ ] **T021a** [SR-002] Inserted task\n- [x] T021"), encoding="utf-8")
+    vf = rag_feature / "security" / "verdicts.yaml"
+    vf.parent.mkdir(parents=True)
+    vf.write_text(yaml.safe_dump({"verdicts": []}), encoding="utf-8")
+    summary = engine.converge_apply(paths, engine.load_config(rag_repo), vf, commit="abc1234")
+    assert summary["appended_tasks"][0] == "T022"  # T021a counts as 21
+
+
+def test_converge_apply_leaves_model_untouched_when_task_append_fails(engine, rag_repo, rag_feature, monkeypatch):
+    paths = engine.Paths(rag_repo, rag_feature)
+    before = paths.model.read_text(encoding="utf-8")
+    vf = rag_feature / "security" / "verdicts.yaml"
+    vf.parent.mkdir(parents=True)
+    vf.write_text(yaml.safe_dump({"verdicts": []}), encoding="utf-8")
+
+    def boom(*_a, **_k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(engine, "next_task_id", boom)
+    try:
+        engine.converge_apply(paths, engine.load_config(rag_repo), vf, commit="abc1234")
+    except RuntimeError:
+        pass
+    assert paths.model.read_text(encoding="utf-8") == before

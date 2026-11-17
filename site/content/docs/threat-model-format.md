@@ -129,6 +129,7 @@ A threat with `attributes.disposition: needs-clarification` is a question, not a
 - `mitigations[].attributes.threats` → `threats[]`; `mitigations[].attributes.requirements` → `requirements[]`
 - `requirements[].mitigations` → `mitigations[]`
 - `verification[].requirement` → `requirements[]`; `decisions[].threat` → `threats[]`
+- A feature `requirements[].id` must not reuse an `SR-###` the baseline defines (`validate`, `merge`, and `check` reject it)
 
 ## Exclusions
 
@@ -143,7 +144,7 @@ A spec key entity listed here is deliberately out of the model, and check C8 ski
 
 ## Baseline inheritance
 
-`threatspec.extends` may point at a project-level model (by convention `.specify/memory/threat-model.yaml`). Entities from the baseline are visible for reference resolution and rendering; the feature model wins on id clashes. The baseline is never written by feature commands.
+`threatspec.extends` may point at a project-level model (by convention `.specify/memory/threat-model.yaml`). Entities from the baseline are visible for reference resolution and rendering; the feature model wins on id clashes, except for requirements: `SR-###` ids are unique across the project, so a feature requirement that reuses a baseline id is a C2 error. The baseline is never written by feature commands.
 
 ## Drift hashes
 
