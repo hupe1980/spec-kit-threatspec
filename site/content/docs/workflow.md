@@ -77,7 +77,7 @@ Upload the SARIF file with `github/codeql-action/upload-sarif` to see findings i
 The repository also ships a composite GitHub Action (`action.yml`) that runs the check, uploads SARIF under the `threatspec` category, and fails the job on HIGH/CRITICAL:
 
 ```yaml
-- uses: hupe1980/spec-kit-threatspec@v0.2.2
+- uses: hupe1980/spec-kit-threatspec@v0.2.3
   with:
     feature-dir: specs/007-rag-assistant
     strict: "false"          # "true" also fails on MEDIUM
@@ -94,6 +94,22 @@ Check C6 (requirement without verification) is phase-aware: LOW while no task fo
 ## Task linking
 
 Task lines are `- [ ] T001 …`; the engine also accepts `- [x]` (done), `- [~]` (in progress, still open), bold ids (`**T001**`), and inserted ids with a letter suffix (`T006a`). A task counts for a requirement only when it carries the bracket tag `[SR-###]` (comma lists such as `[SR-001, SR-003]` are allowed) or is listed under `requirements[].tasks`. A prose mention like "SR-001 through SR-016" does not count, so ranges cannot produce false coverage.
+
+## Tagging tests
+
+Converge finds evidence by searching `verification.test_dirs` for the requirement id. `SR-###` ids are feature-local, so write the feature-qualified marker in every security test:
+
+```python
+# rag-assistant/SR-003: retrieved documents are delimited as untrusted data
+@pytest.mark.sr("rag-assistant/SR-003")          # register the marker in pytest.ini / pyproject
+def test_rag_assistant_sr_003_injected_instruction_is_ignored(): ...
+```
+
+```ts
+it("rag-assistant/SR-003: injected instruction is ignored", () => { /* … */ });
+```
+
+Any one of these forms is enough. The qualifier is the feature directory without its number or timestamp prefix (`converge-scan` prints it as `evidence.marker`); when two features share a slug, use the full directory name. Identifier forms need underscores (`test_rag_assistant_sr_003`); CamelCase names such as Go's `TestRagAssistantSR003` are not recognised, so put the marker in a comment there. Bare `SR-003` still works until a second feature defines `SR-003`; from then on the file is reported under `ambiguous_test_files`, `converge-apply` refuses to accept it as evidence, and the remediation task asks for the qualified marker.
 
 ## Re-running converge
 

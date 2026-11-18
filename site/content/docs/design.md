@@ -36,6 +36,7 @@ Shostack's four questions map onto the SDD lifecycle. Spec Kit answers the first
 
 - The companion preset ships in v0.1 rather than later; it is small and removes the only ambiguity in core integration.
 - The project baseline model lives in `.specify/memory/threat-model.yaml`, mirroring the constitution.
+- `SR-###` ids are feature-local, like `FR-###`. Features are built on parallel branches and merged later, so a project-wide sequence cannot be maintained; cross-feature references use `<feature-dir>/SR-###`.
 - The default severity matrix is 3×3 with a critical tier; likelihood and impact are OTM-style 0–100 integers.
 - Convergence locates evidence by default and runs tests only when `verification.test_command` is configured.
 - `spec.md` is hashed with the managed SR block removed, so ThreatSpec's own render never counts as drift, while unhashed sources block convergence.

@@ -33,7 +33,8 @@ Actors: the developer (trusted), other contributors to the repo (semi-trusted), 
 | T8 | Secrets or system prompts from artifacts are copied into `threat-model.md` or the SR block | Information Disclosure | Commands forbid verbatim reproduction; the renderer only emits model fields | mitigated by command text |
 | T9 | Hook made mandatory by a project runs ThreatSpec without the developer noticing | Elevation of Privilege | All hooks ship `optional: true`; changing that is an explicit, versioned edit of `.specify/extensions.yml` | mitigated |
 | T10 | Baseline `extends` path points outside the repository | Information Disclosure | The engine resolves the path but only reads YAML; v0.2 will reject paths outside the repo root | open, low |
+| T11 | A test written for another feature's `SR-###` is counted as evidence, because ids are feature-local and repeat across features; or a contributor adds a feature reusing an id to make existing evidence ambiguous | Spoofing | Bare markers count only while the id is unique among feature models; qualified markers (`<slug>/SR-###`) bind a test to one feature; `converge-apply` rejects `verified` verdicts that cite an ambiguous or another feature's file; the clash is visible as `also_defined_in` and in the feature diff | mitigated; covered by tests |
 
 ## Did we do a good job
 
-Tests cover T3, T4, T7 (evidence pointer required), and the append-only contract. T1 and T8 rely on prompt discipline and should be exercised with adversarial fixtures (a spec containing injected instructions) as part of the v0.2 test suite. T6 and T10 are tracked for v0.2.
+Tests cover T3, T4, T7 (evidence pointer required), T11 (feature-scoped evidence), and the append-only contract. T1 and T8 rely on prompt discipline and should be exercised with adversarial fixtures (a spec containing injected instructions) as part of the v0.2 test suite. T6 and T10 are tracked for v0.2.

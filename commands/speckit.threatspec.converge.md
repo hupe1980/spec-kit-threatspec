@@ -75,7 +75,7 @@ mkdir -p "$FEATURE_DIR/security"
 .specify/extensions/threatspec/scripts/bash/threatspec.sh converge-scan --output "$FEATURE_DIR/security/converge-scan.json"
 ```
 
-Read the JSON. Per requirement it lists `statement`, `acceptance` scenarios, linked `mitigations`, `tasks` with done state, `existing_verification`, and `evidence` (`test_files` mentioning the SR id, `touchpoints` with existence flags). It also lists `open_threats`, `decisions`, the deterministic `check_findings`, the current `commit`, and the effective `config`.
+Read the JSON. Per requirement it lists `statement`, `acceptance` scenarios, linked `mitigations`, `tasks` with done state, `existing_verification`, and `evidence` (`test_files` tied to this feature's SR id, `ambiguous_test_files` that use a bare id another feature also defines, `other_feature_test_files` marked for a different feature, `marker`: the qualified form tests should use, `touchpoints` with existence flags). It also lists `open_threats`, `decisions`, the deterministic `check_findings`, the current `commit`, and the effective `config`.
 
 If `config.verification.test_command` is non-empty (or `--run-tests` was given and a command is configured), run exactly that command once from the repository root, capture the summary lines, and treat per-test pass/fail as evidence. Do not run anything else.
 
@@ -83,7 +83,7 @@ If `config.verification.test_command` is non-empty (or `--run-tests` was given a
 
 For every requirement (or only those in `--only`), work through the acceptance scenarios and stop at the first verdict you can justify:
 
-1. **Tests**: open each `evidence.test_files` entry. Does a test set up the *given*, perform the *when*, and assert the *then* of at least one acceptance scenario? If every scenario is covered and the tests pass (you ran them, or you read assertions that would fail if the behaviour were absent) → `verified`, `method: test`, `evidence: path::test_name`.
+1. **Tests**: open each `evidence.test_files` entry. Does a test set up the *given*, perform the *when*, and assert the *then* of at least one acceptance scenario? If every scenario is covered and the tests pass (you ran them, or you read assertions that would fail if the behaviour were absent) → `verified`, `method: test`, `evidence: path::test_name`. Never cite an `evidence.ambiguous_test_files` or `evidence.other_feature_test_files` entry: SR ids are feature-local, and a bare id in that file may belong to the feature named in `also_defined_in`. If such a file does cover this requirement, say so in `justification` and tell the user to qualify the marker as `evidence.marker`; the verdict stays as if the file did not exist (the engine rejects a `verified` verdict that cites it).
 2. **Touchpoints**: open the mitigation's touchpoint files. Is the control present, and is it called from the execution path the threat targets (a route, a handler, the agent loop)? Present, wired, but no test covers the scenarios → `implemented-unverified`, `method: review`, `evidence: path:line`.
 3. **Partial**: some acceptance scenario has no implementation at all (e.g. the delimiting exists but "the attempt is logged" does not), the control covers one path but not another, or the control exists but nothing calls it → `partial`, naming the missing piece in `justification`.
 4. **Scanner or review records**: `config.verification.scanners` output or a review record under `FEATURE_DIR/security/` covering the requirement → `verified` with `method: scan` or `review`.

@@ -297,3 +297,123 @@ def test_converge_apply_leaves_model_untouched_when_task_append_fails(engine, ra
     except RuntimeError:
         pass
     assert paths.model.read_text(encoding="utf-8") == before
+
+
+def _sibling_feature_with(rag_repo, rid, name="008-billing"):
+    """A second feature that reuses `rid`: SR ids are feature-local, so this is legitimate."""
+    d = rag_repo / "specs" / name
+    d.mkdir(parents=True)
+    (d / "threat-model.yaml").write_text(yaml.safe_dump({"requirements": [{"id": rid, "statement": "x"}]}),
+                                         encoding="utf-8")
+    return d
+
+
+def test_bare_marker_is_ambiguous_when_another_feature_defines_the_id(engine, rag_repo, rag_feature):
+    _sibling_feature_with(rag_repo, "SR-001")
+    data = engine.converge_scan(engine.Paths(rag_repo, rag_feature), engine.load_config(rag_repo))
+    ev = {r["id"]: r for r in data["requirements"]}["SR-001"]["evidence"]
+    assert ev["test_files"] == []
+    assert ev["ambiguous_test_files"] == [{"path": "tests/agent/test_prompt_injection.py",
+                                           "also_defined_in": ["008-billing"]}]
+
+
+def test_qualified_marker_counts_only_for_the_named_feature(engine, rag_repo, rag_feature):
+    billing = _sibling_feature_with(rag_repo, "SR-001")
+    t = rag_repo / "tests" / "agent"
+    (t / "test_ours_slug.py").write_text("# rag-assistant/SR-001\n", encoding="utf-8")
+    (t / "test_ours_dir.py").write_text("# 007-RAG-assistant/sr_001\n", encoding="utf-8")
+    (t / "test_theirs.py").write_text("# billing/SR-001\n", encoding="utf-8")
+    cfg = engine.load_config(rag_repo)
+    ours = engine.converge_scan(engine.Paths(rag_repo, rag_feature), cfg)
+    ev = {r["id"]: r for r in ours["requirements"]}["SR-001"]["evidence"]
+    assert ev["test_files"] == ["tests/agent/test_ours_dir.py", "tests/agent/test_ours_slug.py"]
+    assert [a["path"] for a in ev["ambiguous_test_files"]] == ["tests/agent/test_prompt_injection.py"]
+    theirs = engine.find_evidence(rag_repo, "SR-001", cfg, [], feature=billing.name,
+                                  other_features=engine.features_defining(rag_repo, "SR-001", exclude=billing))
+    assert theirs["test_files"] == ["tests/agent/test_theirs.py"]
+
+
+def test_path_before_marker_is_not_a_feature_qualifier(engine, rag_repo, rag_feature):
+    (rag_repo / "tests" / "agent" / "test_path.py").write_text("# see docs/SR-001\n", encoding="utf-8")
+    ev = engine.find_evidence(rag_repo, "SR-001", engine.load_config(rag_repo), [], feature=rag_feature.name)
+    assert "tests/agent/test_path.py" in ev["test_files"]
+
+
+def test_unrelated_sibling_ids_do_not_affect_evidence(engine, rag_repo, rag_feature):
+    _sibling_feature_with(rag_repo, "SR-042")
+    data = engine.converge_scan(engine.Paths(rag_repo, rag_feature), engine.load_config(rag_repo))
+    ev = {r["id"]: r for r in data["requirements"]}["SR-001"]["evidence"]
+    assert ev["test_files"] == ["tests/agent/test_prompt_injection.py"] and ev["ambiguous_test_files"] == []
+
+
+def test_identifier_form_qualifier_and_longest_alias(engine, rag_repo, rag_feature):
+    _sibling_feature_with(rag_repo, "SR-001")
+    _sibling_feature_with(rag_repo, "SR-001", name="009-assistant")
+    t = rag_repo / "tests" / "agent"
+    (t / "test_ident.py").write_text("def test_rag_assistant_sr_001(): pass\n", encoding="utf-8")
+    (t / "test_short.py").write_text("def test_assistant_sr_001(): pass\n", encoding="utf-8")
+    ev = engine.find_evidence(rag_repo, "SR-001", engine.load_config(rag_repo), [], feature=rag_feature.name,
+                              other_features=["008-billing", "009-assistant"])
+    assert ev["test_files"] == ["tests/agent/test_ident.py"]
+    assert ev["marker"] == "rag-assistant/SR-001"
+
+
+def test_shared_slug_needs_the_full_directory_name(engine, rag_repo, rag_feature):
+    other = _sibling_feature_with(rag_repo, "SR-001", name="012-rag-assistant")
+    t = rag_repo / "tests" / "agent"
+    (t / "test_slug.py").write_text("# rag-assistant/SR-001\n", encoding="utf-8")
+    (t / "test_full.py").write_text("# 007-rag-assistant/SR-001\n", encoding="utf-8")
+    ev = engine.find_evidence(rag_repo, "SR-001", engine.load_config(rag_repo), [], feature=rag_feature.name,
+                              other_features=[other.name])
+    assert ev["test_files"] == ["tests/agent/test_full.py"]
+    assert {a["path"] for a in ev["ambiguous_test_files"]} == {"tests/agent/test_prompt_injection.py",
+                                                               "tests/agent/test_slug.py"}
+    assert ev["marker"] == "007-rag-assistant/SR-001"
+
+
+def test_timestamp_prefixed_feature_slug(engine):
+    assert engine.feature_slug("20261118-153000-rag-assistant") == "rag-assistant"
+    assert engine.feature_slug("007-rag-assistant") == "rag-assistant"
+
+
+def test_converge_apply_rejects_ambiguous_evidence(engine, rag_repo, rag_feature):
+    _sibling_feature_with(rag_repo, "SR-001")
+    paths, cfg = engine.Paths(rag_repo, rag_feature), engine.load_config(rag_repo)
+    vf = rag_feature / "security" / "verdicts.yaml"
+    vf.parent.mkdir(parents=True)
+    vf.write_text(yaml.safe_dump({"verdicts": [{"requirement": "SR-001", "verdict": "verified", "method": "test",
+                                                "evidence": "tests/agent/test_prompt_injection.py::test_x"}]}),
+                  encoding="utf-8")
+    import pytest
+    with pytest.raises(SystemExit, match="qualify it as rag-assistant/SR-001"):
+        engine.converge_apply(paths, cfg, vf, commit="c1", only=["SR-001"])
+
+
+def test_remediation_task_names_the_qualified_marker(engine, rag_repo, rag_feature):
+    paths, cfg = engine.Paths(rag_repo, rag_feature), engine.load_config(rag_repo)
+    vf = rag_feature / "security" / "verdicts.yaml"
+    vf.parent.mkdir(parents=True)
+    vf.write_text(yaml.safe_dump({"verdicts": [{"requirement": "SR-002", "verdict": "implemented-unverified",
+                                                "method": "review", "evidence": "src/x.py:1"}]}), encoding="utf-8")
+    engine.converge_apply(paths, cfg, vf, commit="c1", only=["SR-002"])
+    assert "mark its test `rag-assistant/SR-002`" in (rag_feature / "tasks.md").read_text(encoding="utf-8")
+
+
+def test_evidence_path_normalises_pointer_forms(engine):
+    for ptr in ("tests/a.py::test_x", "tests/a.py:12", "./tests/a.py#L12", "tests\\a.py", " tests/a.py "):
+        assert engine.evidence_path(ptr) == "tests/a.py"
+
+
+def test_converge_apply_rejects_other_features_test_and_line_pointers(engine, rag_repo, rag_feature):
+    import pytest
+    _sibling_feature_with(rag_repo, "SR-001")
+    (rag_repo / "tests" / "agent" / "test_billing.py").write_text("# billing/SR-001\n", encoding="utf-8")
+    paths, cfg = engine.Paths(rag_repo, rag_feature), engine.load_config(rag_repo)
+    vf = rag_feature / "security" / "verdicts.yaml"
+    vf.parent.mkdir(parents=True)
+    for ptr, msg in (("./tests/agent/test_billing.py:3", "marked for 008-billing"),
+                     ("tests/agent/test_prompt_injection.py:5", "qualify it as rag-assistant/SR-001")):
+        vf.write_text(yaml.safe_dump({"verdicts": [{"requirement": "SR-001", "verdict": "verified",
+                                                    "method": "test", "evidence": ptr}]}), encoding="utf-8")
+        with pytest.raises(SystemExit, match=msg):
+            engine.converge_apply(paths, cfg, vf, commit="c1", only=["SR-001"])
