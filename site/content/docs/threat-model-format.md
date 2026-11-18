@@ -131,6 +131,22 @@ A threat with `attributes.disposition: needs-clarification` is a question, not a
 - `verification[].requirement` → `requirements[]`; `decisions[].threat` → `threats[]`
 - A feature `requirements[].id` must not reuse an `SR-###` the baseline defines (`validate`, `merge`, and `check` reject it)
 
+## Requirement id scope
+
+`SR-###` ids are local to a feature, the same as Spec Kit's `FR-###`. Features are often developed on separate branches by different people and merged later, so no project-wide sequence can be kept, and two features may both define `SR-001`. Only the baseline is shared: a feature continues after the baseline's highest id and must not reuse one.
+
+Outside its feature, a requirement is identified as `<feature-dir>/SR-###`, e.g. `007-rag-assistant/SR-001`. Evidence collection follows the same rule:
+
+| Marker in a test file | Counts as evidence for |
+|---|---|
+| `SR-001` (bare) | the feature that defines `SR-001`, if no other feature does. If several do, the file is reported under `ambiguous_test_files` and is not evidence. |
+| `rag-assistant/SR-001`, `007-rag-assistant/SR-001`, `@pytest.mark.sr("rag-assistant/SR-001")` | that feature only |
+| `test_rag_assistant_sr_001` (identifier form) | that feature only |
+
+The qualifier is the feature directory or its slug (the name without the numeric or timestamp prefix), joined by `/` or `_`, compared without regard to case or to `-`, `_`, `.`. A slug shared by two features (`003-auth`, `009-auth`) does not qualify; use the full directory name. A qualifier that names no feature (as in `docs/SR-001` or `test_sr_001`) is ignored and the marker counts as bare.
+
+`converge-scan` reports the form to use as `evidence.marker` and lists files marked only for other features under `evidence.other_feature_test_files`; remediation tasks name the marker, and `converge-apply` rejects a `verified` verdict whose evidence pointer (`path::test`, `path:line`, `path#L…`) is an ambiguous file or another feature's file. CamelCase identifiers (`TestRagAssistantSR001`) are not recognised as qualified; use a comment. Bare markers keep working while the number is not shared; new tests should be qualified from the start, which the companion preset's tasks instruction asks for.
+
 ## Exclusions
 
 ```yaml
@@ -144,7 +160,7 @@ A spec key entity listed here is deliberately out of the model, and check C8 ski
 
 ## Baseline inheritance
 
-`threatspec.extends` may point at a project-level model (by convention `.specify/memory/threat-model.yaml`). Entities from the baseline are visible for reference resolution and rendering; the feature model wins on id clashes, except for requirements: `SR-###` ids are unique across the project, so a feature requirement that reuses a baseline id is a C2 error. The baseline is never written by feature commands.
+`threatspec.extends` may point at a project-level model (by convention `.specify/memory/threat-model.yaml`). Entities from the baseline are visible for reference resolution and rendering; the feature model wins on id clashes, except for requirements: baseline `SR-###` ids are shared by every feature, so a feature requirement that reuses a baseline id is a C2 error. Ids defined by other features are not visible and may repeat (see [Requirement id scope](#requirement-id-scope)). The baseline is never written by feature commands.
 
 ## Drift hashes
 

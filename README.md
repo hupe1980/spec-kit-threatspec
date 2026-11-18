@@ -43,7 +43,7 @@ Asset ─▶ Threat ─▶ Mitigation ─▶ Security Requirement (SR-###)
 
 ```bash
 # From a release archive (the CLI asks you to confirm the untrusted URL)
-specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.2.2.zip
+specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.2.3.zip
 
 # Or register this repository's catalog once, then install by name
 specify extension catalog add https://raw.githubusercontent.com/hupe1980/spec-kit-threatspec/main/catalog.json --name threatspec --install-allowed
@@ -106,7 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hupe1980/spec-kit-threatspec@v0.2.2
+      - uses: hupe1980/spec-kit-threatspec@v0.2.3
         with:
           feature-dir: specs/007-rag-assistant   # optional; auto-detected from SPECIFY_FEATURE or the branch
           strict: "false"
@@ -158,6 +158,7 @@ Every key, its default, what reads it, and the merge order: [configuration refer
 | `YAML parse error … quote any scalar` | A `[NEEDS CLARIFICATION: …]` name or a value containing `: ` is unquoted in the incoming model. Quote it and re-run `merge`. |
 | `merge rejected, N validation error(s)` | The incoming model references an id that does not exist. The errors name the entity and field; fix the file, do not bypass. |
 | Commands do not appear in the agent | Run `specify extension list`; if installed, restart the agent so it reloads `.claude/commands` or `.claude/skills`. |
+| Converge lists a test under `ambiguous_test_files` | Another feature defines the same `SR-###` (ids are feature-local). Qualify the marker in the test as `<feature-slug>/SR-###`, e.g. `rag-assistant/SR-001` or `test_rag_assistant_sr_001`; `converge-scan` prints the exact form as `evidence.marker`. |
 | C9 drift right after editing `spec.md` | Expected: re-run the model command so the hashes match. Rendering the SR block does not count as drift. |
 | Convergence keeps reporting `never hashed` | The model predates source hashing; run the model command once to record hashes. |
 

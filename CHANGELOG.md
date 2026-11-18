@@ -4,6 +4,23 @@ All notable changes to the ThreatSpec extension are documented here. The format 
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-18
+
+### Fixed
+
+- Evidence collection mixed up features. `SR-###` ids are feature-local (features are built on parallel branches, so no project-wide sequence exists), but `converge-scan` counted every test file mentioning `SR-001` as evidence, including tests written for another feature's `SR-001`. A bare marker now counts only while no other feature defines the same id; otherwise the file is listed under the new `evidence.ambiguous_test_files` (with `also_defined_in`). A qualified marker always counts for the feature it names and never for another: `rag-assistant/SR-001`, `007-rag-assistant/SR-001`, or the identifier form `test_rag_assistant_sr_001`. A slug shared by two features does not qualify; the full directory name does. Timestamp-prefixed feature directories are supported. Repositories whose SR numbers are not shared see no change.
+- `converge-apply` rejects a `verified` verdict whose evidence is an ambiguous test file or a file marked for another feature, and names the marker to use. Evidence pointers are matched in `path::test`, `path:line`, and `path#L…` form.
+- The docs claimed `SR-###` ids are unique across features. They are now documented as feature-local, with `<feature-dir>/SR-###` as the cross-feature reference form (methodology, format reference, configuration, design decisions), a new "Tagging tests" section in the workflow guide, a README troubleshooting entry, and threat T11 in ThreatSpec's own threat model. The baseline rule is unchanged: a feature must not reuse a baseline id.
+- SARIF output reports tool version `0.2.3`.
+
+### Added
+
+- `converge-scan` reports `evidence.other_feature_test_files` and `evidence.marker`, the qualified form tests should use. Remediation tasks name it, and the companion preset's tasks instruction asks for it on every new security test, so new tests are unambiguous from the start.
+
+### Changed
+
+- `converge-scan` reads sibling feature models once per run instead of once per requirement.
+
 ## [0.2.2] - 2026-11-17
 
 ### Fixed

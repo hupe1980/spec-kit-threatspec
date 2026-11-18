@@ -27,7 +27,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 try:
     import yaml
@@ -845,7 +845,7 @@ def report_sarif(findings: List[Finding], paths: Paths) -> str:
         })
     sarif = {
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json", "version": "2.1.0",
-        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.2.2",
+        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.2.3",
                                        "informationUri": "https://github.com/hupe1980/spec-kit-threatspec",
                                        "rules": list(rules.values())}},
                   "results": results}],
@@ -1227,13 +1227,93 @@ EVIDENCE_SKIP_SUFFIXES = {".pyc", ".pyo", ".png", ".jpg", ".jpeg", ".gif", ".pdf
                           ".zip", ".gz", ".tar", ".class", ".jar", ".wasm", ".lock"}
 
 
-def find_evidence(repo: Path, rid: str, cfg: Dict[str, Any], touchpoints: List[str]) -> Dict[str, Any]:
+def _norm_name(s: str) -> str:
+    """Case- and separator-insensitive form, so rag-assistant, RAG_Assistant and rag.assistant compare equal and
+    a qualifier also works inside an identifier (test_rag_assistant_sr_001)."""
+    return re.sub(r"[-_.]+", "_", s.lower()).strip("_")
+
+
+def feature_slug(name: str) -> str:
+    """Feature directory name without its numeric or timestamp prefix: 007-rag-assistant → rag-assistant."""
+    return re.sub(r"^(?:\d+-)+", "", name) or name
+
+
+def feature_dirs(repo: Path) -> List[str]:
+    specs = repo / "specs"
+    return sorted(d.name for d in specs.iterdir() if d.is_dir()) if specs.is_dir() else []
+
+
+def feature_alias_map(repo: Path, extra: Optional[str] = None) -> Dict[str, str]:
+    """Normalised qualifier → feature directory. The full directory name always qualifies; the slug only while
+    no other feature shares it (003-auth and 009-auth must be told apart by their full names)."""
+    names = set(feature_dirs(repo)) | ({extra} if extra else set())
+    slugs: Dict[str, List[str]] = {}
+    for n in names:
+        slugs.setdefault(_norm_name(feature_slug(n)), []).append(n)
+    out = {a: ns[0] for a, ns in slugs.items() if len(ns) == 1}
+    out.update({_norm_name(n): n for n in names})
+    return out
+
+
+def feature_marker(repo: Path, feature: str, rid: str) -> str:
+    """The qualified marker to write in a test: `<slug>/SR-###`, or `<dir>/SR-###` when the slug is shared."""
+    slug = feature_slug(feature)
+    return f"{slug if feature_alias_map(repo, feature).get(_norm_name(slug)) == feature else feature}/{rid}"
+
+
+def resolve_qualifier(q: str, aliases: Dict[str, str]) -> Optional[str]:
+    """Feature a marker qualifier names, or None. `q` may carry a prefix (test_rag_assistant in
+    test_rag_assistant_sr_001); the longest alias it ends with wins. A qualifier naming no feature (docs in
+    docs/SR-001) resolves to None and the marker counts as bare."""
+    qn = _norm_name(q)
+    best = None
+    for a, feat in aliases.items():
+        if (qn == a or qn.endswith("_" + a)) and (best is None or len(a) > len(best[0])):
+            best = (a, feat)
+    return best[1] if best else None
+
+
+def requirement_index(repo: Path) -> Dict[str, List[str]]:
+    """SR id → feature directories whose model defines it. SR ids are feature-local, so one number may belong to
+    several features. Read once per scan; an unreadable sibling model is skipped, never fatal."""
+    out: Dict[str, List[str]] = {}
+    for name in feature_dirs(repo):
+        mp = repo / "specs" / name / "threat-model.yaml"
+        if not mp.exists():
+            continue
+        try:
+            reqs = (load_yaml(mp) or {}).get("requirements") or []
+        except Exception:
+            continue
+        for r in reqs:
+            if isinstance(r, dict) and r.get("id"):
+                out.setdefault(str(r["id"]), []).append(name)
+    return out
+
+
+def features_defining(repo: Path, rid: str, exclude: Optional[Path] = None,
+                      index: Optional[Dict[str, List[str]]] = None) -> List[str]:
+    """Feature directories other than `exclude` whose model defines `rid`."""
+    idx = index if index is not None else requirement_index(repo)
+    return [n for n in idx.get(rid, []) if exclude is None or n != exclude.name]
+
+
+def find_evidence(repo: Path, rid: str, cfg: Dict[str, Any], touchpoints: List[str],
+                  feature: Optional[str] = None, other_features: Sequence[str] = ()) -> Dict[str, Any]:
+    """Test files that mention `rid`. A qualified marker (`rag-assistant/SR-001`, `test_rag_assistant_sr_001`)
+    counts only for the feature it names. A bare marker (`SR-001`) counts only while no other feature defines the
+    same id; otherwise the file is listed under `ambiguous_test_files` and is not evidence until it is qualified."""
     dirs = (cfg.get("verification") or {}).get("test_dirs") or ["tests", "test", "spec", "__tests__"]
     markers = (cfg.get("verification") or {}).get("evidence_markers") or ["SR-"]
     hits: List[str] = []
+    ambiguous: List[Dict[str, Any]] = []
+    foreign: List[Dict[str, Any]] = []
     number = rid.split("-", 1)[1]
-    # Accept every configured spelling of the id: SR-001, SR_001, SR001, sr-001 …
-    pat = re.compile("|".join(re.escape(m.rstrip("-_")) + r"[-_]?" + re.escape(number) + r"(?!\d)" for m in markers), re.I)
+    aliases = feature_alias_map(repo, feature)
+    # Accept every configured spelling of the id: SR-001, SR_001, SR001, sr-001 …, optionally qualified with a
+    # feature name and '/' or '_': rag-assistant/SR-001, 007-rag-assistant/SR_001, test_rag_assistant_sr_001.
+    ids = "|".join(re.escape(m.rstrip("-_")) + r"[-_]?" + re.escape(number) + r"(?!\d)" for m in markers)
+    pat = re.compile(r"(?:(?P<q>[A-Za-z0-9][A-Za-z0-9._-]*?)[/_])?(?:" + ids + ")", re.I)
     for d in dirs:
         base = repo / d
         if not base.is_dir():
@@ -1247,10 +1327,28 @@ def find_evidence(repo: Path, rid: str, cfg: Dict[str, Any], touchpoints: List[s
                 content = p.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
-            if pat.search(content):
-                hits.append(p.relative_to(repo).as_posix())
+            named, bare = set(), False
+            for m in pat.finditer(content):
+                owner = resolve_qualifier(m.group("q"), aliases) if m.group("q") else None
+                if owner:
+                    named.add(owner)
+                else:
+                    bare = True
+            rel = p.relative_to(repo).as_posix()
+            if feature and feature in named:
+                hits.append(rel)
+            elif bare and other_features:
+                ambiguous.append({"path": rel, "also_defined_in": list(other_features)})
+            elif bare:
+                hits.append(rel)
+            elif named:
+                foreign.append({"path": rel, "features": sorted(named)})
     tp = [{"path": t, "exists": (repo / t).exists()} for t in touchpoints]
-    return {"test_files": sorted(hits), "touchpoints": tp}
+    out = {"test_files": sorted(hits), "ambiguous_test_files": sorted(ambiguous, key=lambda a: a["path"]),
+           "other_feature_test_files": sorted(foreign, key=lambda a: a["path"]), "touchpoints": tp}
+    if feature:
+        out["marker"] = feature_marker(repo, feature, rid)
+    return out
 
 
 def converge_scan(paths: Paths, cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -1264,6 +1362,7 @@ def converge_scan(paths: Paths, cfg: Dict[str, Any]) -> Dict[str, Any]:
     for v in view.get("verification") or []:
         ver.setdefault(v.get("requirement"), []).append(v)
     items = []
+    sr_index = requirement_index(paths.repo)
     for r in sorted(model.get("requirements") or [], key=lambda x: x["id"]):
         touch = sorted({t for m in r.get("mitigations") or [] for t in (mits.get(m, {}).get("attributes") or {}).get("touchpoints") or []})
         rt = tasks_for_requirement(tasks, r)
@@ -1273,7 +1372,10 @@ def converge_scan(paths: Paths, cfg: Dict[str, Any]) -> Dict[str, Any]:
             "tasks": [{"id": t["id"], "done": t["done"], "text": t["text"]} for t in rt],
             "all_tasks_done": bool(rt) and all(t["done"] for t in rt),
             "existing_verification": ver.get(r["id"], []),
-            "evidence": find_evidence(paths.repo, r["id"], cfg, touch),
+            "evidence": find_evidence(paths.repo, r["id"], cfg, touch,
+                                      feature=paths.feature.name if paths.feature else None,
+                                      other_features=features_defining(paths.repo, r["id"], exclude=paths.feature,
+                                                                       index=sr_index)),
         })
     findings, metrics = run_checks(paths, cfg)
     return {
@@ -1336,6 +1438,12 @@ def latest_verification(model: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     return latest
 
 
+def evidence_path(pointer: Any) -> str:
+    """File part of an evidence pointer: tests/a.py::test_x, tests/a.py:12, ./tests/a.py#L12 → tests/a.py."""
+    p = re.split(r"::|#|:(?=\d)", str(pointer or "").strip(), maxsplit=1)[0].strip().replace("\\", "/")
+    return p[2:] if p.startswith("./") else p
+
+
 def converge_apply(paths: Paths, cfg: Dict[str, Any], verdicts_path: Path, commit: Optional[str],
                    only: Optional[List[str]] = None) -> Dict[str, Any]:
     model = load_model(paths.model)
@@ -1365,6 +1473,18 @@ def converge_apply(paths: Paths, cfg: Dict[str, Any], verdicts_path: Path, commi
             raise SystemExit(f"threatspec: invalid verdict '{verdict}' for {rid}")
         if verdict == "verified" and not v.get("evidence"):
             raise SystemExit(f"threatspec: {rid} cannot be 'verified' without an evidence pointer")
+        if verdict == "verified" and paths.feature is not None:
+            cited = evidence_path(v.get("evidence"))
+            ev = find_evidence(paths.repo, rid, cfg, [], feature=paths.feature.name,
+                               other_features=features_defining(paths.repo, rid, exclude=paths.feature))
+            clash = next((a for a in ev["ambiguous_test_files"] if a["path"] == cited), None)
+            if clash:
+                raise SystemExit(f"threatspec: {rid} cannot be 'verified' by {cited}: its bare {rid} marker is also "
+                                 f"defined in {', '.join(clash['also_defined_in'])}; qualify it as {ev['marker']}")
+            foreign = next((a for a in ev["other_feature_test_files"] if a["path"] == cited), None)
+            if foreign:
+                raise SystemExit(f"threatspec: {rid} cannot be 'verified' by {cited}: it is marked for "
+                                 f"{', '.join(foreign['features'])}, not {paths.feature.name}")
         n = 1
         vid = f"verification.{rid.lower()}.{stamp[:10]}"
         while vid in existing_ids:
@@ -1457,7 +1577,8 @@ def converge_apply(paths: Paths, cfg: Dict[str, Any], verdicts_path: Path, commi
             where = f" — touchpoints: {', '.join(touch)}" if touch else ""
             why = f"; {v.get('justification')}" if v.get("justification") else ""
             statement = str(req.get("statement", "")).rstrip(".")
-            lines.append(f"- [ ] T{tid:03d} [{rid}] {what} {rid} ({statement}){where} [converge: {v.get('verdict')}{why}]")
+            mark = f"; mark its test `{feature_marker(paths.repo, paths.feature.name, rid)}`" if paths.feature else ""
+            lines.append(f"- [ ] T{tid:03d} [{rid}] {what} {rid} ({statement}){where}{mark} [converge: {v.get('verdict')}{why}]")
             appended.append(f"T{tid:03d}")
             tid += 1
         for t_id in open_blocking:

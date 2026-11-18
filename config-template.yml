@@ -37,7 +37,8 @@ verification:
   test_command: ""
   # Scanner outputs that converge may cite as evidence (never as judgment)
   scanners: []
-  # How tests reference requirements (substring searched in test files)
+  # How tests reference requirements (substring searched in test files). SR ids are feature-local: where
+  # several features define the same id, qualify the marker in the test, e.g. rag-assistant/SR-001
   evidence_markers: ["SR-"]
   # Directories searched for evidence
   test_dirs: [tests, test, spec, __tests__]

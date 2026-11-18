@@ -51,7 +51,7 @@ The engine computes `attributes.severity` on every merge. A different level requ
 
 - Every threat has at least one mitigation or a decision (C3). Mitigations name their `kind` (preventive, detective, corrective, deterrent) and the `touchpoints` in the plan where they land.
 - Every mitigation rolls up into one or more `SR-###` requirements (C4). A requirement is an imperative, testable statement with Given/When/Then acceptance scenarios written so a test can implement them.
-- `SR-###` numbering continues from the project baseline so ids stay unique across features.
+- `SR-###` ids are feature-local, like Spec Kit's `FR-###`: each feature numbers its own, continuing after the project baseline's highest id. Features developed on parallel branches may therefore use the same numbers. Outside its feature, a requirement is referred to as `<feature-dir>/SR-###`, and a test that should count as evidence where the number is shared uses that qualified marker (see [the format reference](@/docs/threat-model-format.md#requirement-id-scope)).
 
 ## Decisions instead of silent gaps
 
@@ -59,7 +59,7 @@ Not every threat gets mitigated. `decisions[]` records `accepted` or `transferre
 
 ## Evidence, not claims
 
-The converge command collects facts per requirement: task state, test files that reference the SR id, touchpoint existence, optional verifier output. The agent then judges only from that evidence and must supply a pointer for `verified`; the engine rejects `verified` without one. Verification entries are append-only and carry a timestamp and commit.
+The converge command collects facts per requirement: task state, test files that reference the SR id of *this* feature (SR ids are feature-local, so a bare id another feature also defines is reported as ambiguous, not as evidence), touchpoint existence, optional verifier output. The agent then judges only from that evidence and must supply a pointer for `verified`; the engine rejects `verified` without one. Verification entries are append-only and carry a timestamp and commit.
 
 **Definition of Converged**: no open threat at or above `severity.block_on`; every `SR-###` verified or covered by an unexpired decision (every threat the SR mitigates has an unexpired `accepted`/`transferred` decision; partial coverage does not count); no expired decisions; no drift between the model and `spec.md`/`plan.md`.
 
