@@ -7,8 +7,8 @@
 profile:
   id: stride
   name: STRIDE per element
-  version: "0.1"
-  foundation: "Shostack, Threat Modeling: Designing for Security (2014); Microsoft STRIDE"
+  version: "0.2"
+  foundation: "Shostack, Threat Modeling: Designing for Security (2014); Microsoft STRIDE; OWASP Top 10:2025 A03 and SLSA for third-party code"
 
 element_kinds: [actor, component, dataflow, datastore, trust-boundary]
 
@@ -22,12 +22,13 @@ asset_types:
 
 surfaces:
   - { id: authentication, description: "The system authenticates principals" }
-  - { id: authorization, description: "The system enforces per-principal permissions" }
+  - { id: authorization, description: "The system decides whether an action is permitted: per-principal permissions, or a rule-based eligibility or entitlement decision, with or without an authenticated principal" }
   - { id: persistent-store, description: "The system writes to a durable store" }
   - { id: external-input, description: "Untrusted parties supply input" }
   - { id: network-boundary, description: "A data flow crosses a trust zone" }
   - { id: audit-relevant, description: "Actions must be attributable after the fact" }
   - { id: shared-tenant, description: "Multiple tenants share infrastructure" }
+  - { id: third-party-code, description: "The system builds on, bundles, or loads code it did not write: packages, build tooling, vendored or CDN-served scripts" }
 
 techniques:
   - id: credential-theft
@@ -65,6 +66,14 @@ techniques:
     surfaces: [external-input]
     cwes: [CWE-74, CWE-89, CWE-78]
     mitigations: [input-validation, parameterized-queries, output-encoding]
+  - id: dependency-compromise
+    name: Compromised, typosquatted, vulnerable, or unpinned third-party dependency
+    category: Tampering
+    applies_to: [component]
+    surfaces: [third-party-code]
+    cwes: [CWE-1357, CWE-1395, CWE-494, CWE-829]
+    mappings: { owasp-top10-2025: [A03] }
+    mitigations: [dependency-pinning, dependency-gate, provenance-verification, sbom-monitoring]
   - id: missing-audit-trail
     name: Actions cannot be attributed or reconstructed
     category: Repudiation
@@ -120,6 +129,10 @@ mitigation_patterns:
   - { id: input-validation, name: Allowlist input validation at the boundary, kind: preventive }
   - { id: parameterized-queries, name: Parameterized queries and prepared statements, kind: preventive }
   - { id: output-encoding, name: Context-aware output encoding, kind: preventive }
+  - { id: dependency-pinning, name: "Lockfile committed, dependencies pinned by version and integrity digest", kind: preventive }
+  - { id: dependency-gate, name: "CI gate that fails on known-vulnerable, unreviewed, or unverifiable dependencies", kind: preventive }
+  - { id: provenance-verification, name: "Provenance or signature verification of fetched artifacts (SLSA, Sigstore, SRI)", kind: preventive }
+  - { id: sbom-monitoring, name: "SBOM with continuous vulnerability and end-of-life monitoring", kind: detective }
   - { id: tamper-evident-logging, name: Append-only, tamper-evident audit log, kind: detective }
   - { id: request-ids, name: Correlation ids on every request, kind: detective }
   - { id: encryption-at-rest, name: Encryption at rest with managed keys, kind: preventive }

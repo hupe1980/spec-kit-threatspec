@@ -55,6 +55,9 @@ jobs:
           specify init . --integration claude --non-interactive --ignore-agent-tools
           specify extension add --dev "$GITHUB_WORKSPACE"
           specify extension list
+          test ! -e .specify/extensions/threatspec/.git
+          test ! -e .specify/extensions/threatspec/tests
+          .specify/extensions/threatspec/scripts/bash/threatspec.sh techniques --profiles stride | grep -q dependency-compromise
           test -f .claude/skills/speckit-threatspec-model/SKILL.md || test -f .claude/commands/speckit.threatspec.model.md
           specify preset add --dev "$GITHUB_WORKSPACE/preset/threatspec-sdd"
           specify workflow add --dev "$GITHUB_WORKSPACE/workflow/secure-sdd"

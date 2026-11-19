@@ -162,9 +162,51 @@ A spec key entity listed here is deliberately out of the model, and check C8 ski
 
 `threatspec.extends` may point at a project-level model (by convention `.specify/memory/threat-model.yaml`). Entities from the baseline are visible for reference resolution and rendering; the feature model wins on id clashes, except for requirements: baseline `SR-###` ids are shared by every feature, so a feature requirement that reuses a baseline id is a C2 error. Ids defined by other features are not visible and may repeat (see [Requirement id scope](#requirement-id-scope)). The baseline is never written by feature commands.
 
+## Patch documents
+
+`merge --patch` takes a partial document. It exists so that a plan pass or a single correction does not have to re-send the model.
+
+```yaml
+components:
+  - id: component.eligibility-engine          # unknown id: added, must be complete
+    name: Eligibility engine
+    type: library
+    parent: { trustZone: tz.app }
+mitigations:
+  - id: mitigation.rule-table-integrity       # known id: merged into the existing entry
+    attributes:
+      touchpoints: [src/eligibility/rules.py]
+      notes: null                             # null removes the key
+threatspec:
+  surfaces: [third-party-code]
+  dispositions:
+    - { technique: cross-tenant-leak, disposition: not-applicable, reason: "single-tenant library" }
+remove:
+  - mitigation.obsolete
+  - threat.superseded
+  - disposition:injection
+```
+
+| Part of the patch | Effect |
+|---|---|
+| An entry in `trustZones`, `assets`, `components`, `dataflows`, `threats`, `mitigations`, `requirements` | Merged into the entry with the same `id` by JSON Merge Patch ([RFC 7396](https://www.rfc-editor.org/rfc/rfc7396)): mappings merge, lists and scalars replace, `null` removes a key. An unknown id is added. |
+| An entry in `verification`, `decisions` | Added if the id is new. An existing entry cannot be rewritten: history is append-only. |
+| `threatspec.actors`, `dispositions`, `exclusions` | Upserted by `id`, `technique`, and `entity`. |
+| `threatspec.surfaces` | Added to the recorded surfaces. |
+| `threatspec.profiles`, `threatspec.extends`, `project` | Replaced (`project` is merged). |
+| `remove:` an id of a trust zone, asset, component, data flow, mitigation, requirement, or actor | Deleted. |
+| `remove:` a threat id | Retired with `retired_reason: Retired by patch`. Threats are never deleted. |
+| `remove:` `surface:<id>`, `disposition:<technique>`, `exclusion:<entity>` | Dropped from the `threatspec` list. |
+| `remove:` a verification or decision id | Rejected. |
+| Anything the patch does not name | Unchanged. No threat is retired, nothing is dropped. |
+
+Human-owned threat fields (`status` once `accepted`, `transferred`, `mitigated`, or `retired`; `severity_override`; `notes`) are protected exactly as in a full merge. The result is validated as a whole before anything is written: a removal that leaves a dangling reference, an unknown id under `remove:`, or an unknown top-level key rejects the patch. `remove:` is refused outside `--patch`.
+
+A full merge differs in three ways: threats missing from the incoming model are retired, the four structure lists are replaced by the incoming ones, and mitigations and requirements the incoming model forgot are kept. It prints a `note:` line naming what it dropped or kept.
+
 ## Drift hashes
 
-`threatspec.sources[]` records a SHA-256 per source file. The hash is computed on universal-newline text with trailing newlines trimmed, so a CRLF checkout on Windows produces the same digest as an LF one. For `spec.md` the ThreatSpec-managed block (between `<!-- threatspec:begin -->` and `<!-- threatspec:end -->`) is removed first, so rendering the SR block never counts as drift; any edit outside the markers does.
+`threatspec.sources[]` records a SHA-256 per source file. The hash is computed on universal-newline text with trailing newlines trimmed, so a CRLF checkout on Windows produces the same digest as an LF one. For `spec.md` the ThreatSpec-managed block (between `<!-- threatspec:begin -->` and `<!-- threatspec:end -->`) is removed first, so rendering the SR block never counts as drift; any edit outside the markers does. Only `spec.md` and `plan.md` are hashed. `merge` records the hashes; `rehash` re-records them without changing anything else, for an edit that was reviewed and leaves the model valid.
 
 ## Determinism
 

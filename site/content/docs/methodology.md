@@ -18,6 +18,7 @@ ThreatSpec applies Shostack's four questions to a Spec Kit feature and keeps the
 
 STRIDE is applied per element (actor, component, data flow, datastore, trust boundary). Profiles add techniques that STRIDE does not name but that map onto its categories:
 
+- `stride` itself carries one such technique: `dependency-compromise` (surface `third-party-code`; OWASP Top 10:2025 A03 Software Supply Chain Failures; CWE-1357, CWE-1395, CWE-494, CWE-829), with pinning by digest, a failing CI gate, provenance verification, and SBOM monitoring as suggested mitigations. Its `authorization` surface covers any decision that grants or denies an action, including rule-based eligibility or entitlement decisions that involve no authenticated principal.
 - `llm`: OWASP Top 10 for LLM Applications 2026 and MITRE ATLAS techniques (prompt injection, hidden context exposure, excessive agency, unbounded consumption, …).
 - `agent`: OWASP Top 10 for Agentic Applications 2026 and MAESTRO layers (goal hijack, tool misuse, memory poisoning, rogue agents, …).
 

@@ -11,6 +11,7 @@ Surfaces present: agent-autonomy, audit-relevant, authentication, authorization,
 | stride | data-tampering-in-transit | Tampering | network-boundary | yes | **threat** | `threat.in-transit-tampering` |  |
 | stride | data-tampering-at-rest | Tampering | persistent-store | yes | **threat** | `threat.kb-out-of-band-tamper` |  |
 | stride | injection | Tampering | external-input | yes | **threat** | `threat.question-backend-injection` |  |
+| stride | dependency-compromise | Tampering | third-party-code | no | **surface-absent** | — |  |
 | stride | missing-audit-trail | Repudiation | audit-relevant | yes | **threat** | `threat.ticket-log-unattributable` |  |
 | stride | sensitive-data-exposure | Information Disclosure | — | yes | **threat** | `threat.conversation-log-exposure` |  |
 | stride | cross-tenant-leak | Information Disclosure | shared-tenant | no | **not-applicable** | — | no shared-tenant surface: spec.md describes one internal assistant over 'our knowledge base'; no tenants are named |

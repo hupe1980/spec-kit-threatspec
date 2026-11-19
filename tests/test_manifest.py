@@ -99,3 +99,20 @@ def test_catalog_json_agrees_with_manifest():
     assert entry["provides"]["hooks"] == hooks
     assert entry["requires"]["speckit_version"] == m["requires"]["speckit_version"]
     assert entry["license"] == m["extension"]["license"] and entry["repository"] == m["extension"]["repository"]
+
+
+def test_extensionignore_keeps_repository_metadata_out_of_installs():
+    """`specify extension add --dev` copies everything .extensionignore does not name; it has no built-in excludes."""
+    patterns = {line.strip().rstrip("/") for line in (ROOT / ".extensionignore").read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.startswith("#")}
+    for required in (".git", ".venv", ".github", "tests", "__pycache__"):
+        assert required in patterns, f".extensionignore must exclude {required}"
+    shipped = {"commands", "profiles", "schemas", "scripts", "templates", "extension.yml", "config-template.yml",
+               "README.md", "LICENSE", "CHANGELOG.md"}
+    assert not (patterns & shipped), "a shipped path is ignored"
+
+
+def test_command_prompts_expand_user_input_once():
+    """Agents substitute $ARGUMENTS textually; every extra occurrence repeats the whole user input."""
+    for cmd in (ROOT / "commands").glob("*.md"):
+        assert cmd.read_text(encoding="utf-8").count("$ARGUMENTS") == 1, cmd.name

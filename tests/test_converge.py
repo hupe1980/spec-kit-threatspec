@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
 
@@ -417,3 +418,154 @@ def test_converge_apply_rejects_other_features_test_and_line_pointers(engine, ra
                                                     "method": "test", "evidence": ptr}]}), encoding="utf-8")
         with pytest.raises(SystemExit, match=msg):
             engine.converge_apply(paths, cfg, vf, commit="c1", only=["SR-001"])
+
+
+# --------------------------------------------------------------------------- merge --patch, rehash, techniques
+
+def _cli(engine, rag_repo, *argv):
+    return engine.main(["--repo", str(rag_repo), "--feature-dir", "specs/007-rag-assistant", *argv])
+
+
+def _write_patch(rag_feature, patch):
+    path = rag_feature / "security" / "incoming-threat-model.yaml"
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(yaml.safe_dump(patch, sort_keys=False), encoding="utf-8")
+    return str(path)
+
+
+def test_merge_patch_touches_only_listed_entries(engine, rag_repo, rag_feature):
+    paths = engine.Paths(rag_repo, rag_feature)
+    before = engine.load_model(paths.model)
+    mit = before["mitigations"][0]
+    patch = {"mitigations": [{"id": mit["id"], "attributes": {"touchpoints": ["src/new/place.py"]}}],
+             "threatspec": {"surfaces": ["third-party-code"]}}
+    assert _cli(engine, rag_repo, "merge", "--patch", "--incoming", _write_patch(rag_feature, patch)) == 0
+    after = engine.load_model(paths.model)
+    by_id = {m["id"]: m for m in after["mitigations"]}
+    assert by_id[mit["id"]]["attributes"]["touchpoints"] == ["src/new/place.py"]
+    assert by_id[mit["id"]]["attributes"]["threats"] == mit["attributes"]["threats"], "unlisted keys survive"
+    assert "third-party-code" in after["threatspec"]["surfaces"]
+    assert set(before["threatspec"]["surfaces"]) <= set(after["threatspec"]["surfaces"])
+    for key in ("trustZones", "assets", "components", "dataflows", "requirements", "verification", "decisions"):
+        by = lambda items: sorted(items, key=lambda i: i["id"])
+        assert by(after[key]) == by(before[key]), f"{key} must be untouched by an unrelated patch"
+    statuses = lambda m: {t["id"]: t["attributes"]["status"] for t in m["threats"]}
+    assert statuses(after) == statuses(before), "a patch retires nothing it does not name"
+
+
+def test_merge_patch_null_removes_a_key_and_unknown_id_adds(engine, rag_repo, rag_feature):
+    paths = engine.Paths(rag_repo, rag_feature)
+    before = engine.load_model(paths.model)
+    comp = before["components"][0]
+    patch = {"components": [{"id": comp["id"], "description": None},
+                            {"id": "component.new-thing", "name": "New thing", "type": "service",
+                             "parent": comp["parent"]}]}
+    assert _cli(engine, rag_repo, "merge", "--patch", "--incoming", _write_patch(rag_feature, patch)) == 0
+    after = {c["id"]: c for c in engine.load_model(paths.model)["components"]}
+    assert "description" not in after[comp["id"]] and after[comp["id"]]["name"] == comp["name"]
+    assert "component.new-thing" in after and len(after) == len(before["components"]) + 1
+
+
+def test_merge_stats_cover_every_entity_kind(engine, rag_repo, rag_feature):
+    paths = engine.Paths(rag_repo, rag_feature)
+    existing = engine.load_model(paths.model)
+    patch = {"mitigations": [{"id": existing["mitigations"][0]["id"], "attributes": {"touchpoints": ["src/x.py"]}}],
+             "assets": [{"id": "asset.new", "name": "New", "risk": {"confidentiality": 1, "integrity": 1, "availability": 1}}]}
+    incoming, removed, errors = engine.apply_patch(existing, patch)
+    assert not errors and not removed
+    _, stats = engine.merge_models(existing, incoming, paths, engine.load_profiles(["stride", "llm", "agent"]))
+    assert (stats["added"], stats["updated"], stats["retired"], stats["removed"]) == (1, 1, 0, 0)
+
+
+def test_merge_patch_remove_retires_threats_and_deletes_the_rest(engine, rag_repo, rag_feature):
+    paths = engine.Paths(rag_repo, rag_feature)
+    model = engine.load_model(paths.model)
+    model["threats"].append({"id": "threat.scratch", "name": "Scratch", "categories": ["Tampering"],
+                             "risk": {"likelihood": 10, "impact": 10}, "attributes": {"status": "open"}})
+    model["mitigations"].append({"id": "mitigation.scratch", "name": "Scratch", "riskReduction": 10,
+                                 "attributes": {"threats": ["threat.scratch"], "status": "required"}})
+    paths.model.write_text(engine.dump_yaml(model), encoding="utf-8")
+    # a full merge can never delete the mitigation: it is carried over
+    full = engine.load_model(paths.model)
+    full["mitigations"] = [m for m in full["mitigations"] if m["id"] != "mitigation.scratch"]
+    notes = []
+    merged, _ = engine.merge_models(model, full, paths, engine.load_profiles(["stride"]), notes=notes)
+    assert "mitigation.scratch" in {m["id"] for m in merged["mitigations"]}
+    assert any("mitigation.scratch" in n for n in notes)
+    # the patch can
+    patch = {"remove": ["mitigation.scratch", "threat.scratch"]}
+    assert _cli(engine, rag_repo, "merge", "--patch", "--incoming", _write_patch(rag_feature, patch)) == 0
+    after = engine.load_model(paths.model)
+    assert "mitigation.scratch" not in {m["id"] for m in after["mitigations"]}
+    scratch = {t["id"]: t for t in after["threats"]}["threat.scratch"]
+    assert scratch["attributes"]["status"] == "retired" and scratch["attributes"]["retired_reason"] == "Retired by patch"
+
+
+def test_merge_patch_rejects_history_edits_dangling_removals_and_unknown_ids(engine, rag_repo, rag_feature, capsys):
+    paths = engine.Paths(rag_repo, rag_feature)
+    before = paths.model.read_text(encoding="utf-8")
+    model = engine.load_model(paths.model)
+    decision = model["decisions"][0]
+    used_mitigation = model["requirements"][0]["mitigations"][0]
+    for patch, needle in (
+        ({"remove": [decision["id"]]}, "never deleted"),
+        ({"decisions": [{"id": decision["id"], "rationale": "rewritten"}]}, "append-only"),
+        ({"remove": ["component.does-not-exist"]}, "matches nothing"),
+        ({"remove": [used_mitigation]}, "unknown mitigation"),
+        ({"threatz": []}, "unknown top-level key"),
+    ):
+        assert _cli(engine, rag_repo, "merge", "--patch", "--incoming", _write_patch(rag_feature, patch)) == 1
+        assert needle in capsys.readouterr().err
+        assert paths.model.read_text(encoding="utf-8") == before, "a rejected patch writes nothing"
+
+
+def test_remove_is_refused_outside_patch_mode(engine, rag_repo, rag_feature):
+    paths = engine.Paths(rag_repo, rag_feature)
+    doc = engine.load_model(paths.model)
+    doc["remove"] = ["threat.rag-poisoning"]
+    with pytest.raises(SystemExit, match="only valid in a patch"):
+        _cli(engine, rag_repo, "merge", "--incoming", _write_patch(rag_feature, doc))
+
+
+def test_full_merge_reports_dropped_structure(engine, rag_repo, rag_feature):
+    paths = engine.Paths(rag_repo, rag_feature)
+    existing = engine.load_model(paths.model)
+    incoming = json.loads(json.dumps(existing))
+    incoming["trustZones"].append({"id": "tz.extra", "name": "Extra", "risk": {"trustRating": 10}})
+    existing["trustZones"].append({"id": "tz.forgotten", "name": "Forgotten", "risk": {"trustRating": 10}})
+    notes = []
+    _, stats = engine.merge_models(existing, incoming, paths, engine.load_profiles(["stride"]), notes=notes)
+    assert stats["removed"] == 1 and any("tz.forgotten" in n and "dropped" in n for n in notes)
+
+
+def test_rehash_clears_drift_without_touching_the_model(engine, rag_repo, rag_feature, capsys):
+    paths = engine.Paths(rag_repo, rag_feature)
+    assert _cli(engine, rag_repo, "rehash") == 0
+    paths.spec.write_text(paths.spec.read_text(encoding="utf-8") + "\nA typo fix.\n", encoding="utf-8")
+    cfg = engine.load_config(rag_repo)
+    assert any(f.check == "C9" for f in engine.run_checks(paths, cfg)[0])
+    before = engine.load_model(paths.model)
+    assert _cli(engine, rag_repo, "rehash", "--dry-run") == 0
+    assert engine.load_model(paths.model) == before
+    capsys.readouterr()
+    assert _cli(engine, rag_repo, "rehash") == 0
+    assert "spec.md: changed" in capsys.readouterr().out
+    after = engine.load_model(paths.model)
+    assert not any(f.check == "C9" for f in engine.run_checks(paths, cfg)[0])
+    before["threatspec"].pop("sources"); after["threatspec"].pop("sources")
+    assert engine.dump_yaml(after) == engine.dump_yaml(before), "rehash changes the recorded hashes and nothing else"
+
+
+def test_techniques_lists_profiles_without_a_feature(engine, tmp_path, capsys):
+    assert engine.main(["--repo", str(tmp_path), "techniques", "--profiles", "stride,llm", "--format", "json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [p["profile"] for p in data["profiles"]] == ["stride", "llm"]
+    stride = {t["id"]: t for t in data["profiles"][0]["techniques"]}
+    dep = stride["dependency-compromise"]
+    assert dep["category"] == "Tampering" and dep["surfaces"] == ["third-party-code"] and "CWE-1357" in dep["cwes"]
+    assert dep["mappings"] == {"owasp-top10-2025": ["A03"]} and "dependency-gate" in dep["mitigations"]
+    assert engine.main(["--repo", str(tmp_path), "techniques"]) == 0
+    md = capsys.readouterr().out
+    assert "## Profile `stride`" in md and "| `dependency-compromise` |" in md and "`third-party-code`" in md
+    with pytest.raises(SystemExit, match="unknown profile"):
+        engine.main(["--repo", str(tmp_path), "techniques", "--profiles", "nope"])
