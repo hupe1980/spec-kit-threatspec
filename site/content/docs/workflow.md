@@ -87,6 +87,31 @@ The repository also ships a composite GitHub Action (`action.yml`) that runs the
 
 Check C6 (requirement without verification) is phase-aware: LOW while no task for the requirement is done, MEDIUM while implementation is in progress, HIGH/MEDIUM once all tasks are checked but nothing verifies the requirement. A pre-implementation run therefore does not fail CI on verification alone.
 
+## Plan pass and targeted changes
+
+A first run and a full update send the complete model: `merge` replaces the structure lists and retires threats that are no longer present. The plan pass (`--from-plan`) and any targeted change send a patch instead:
+
+```bash
+threatspec.sh merge --patch --incoming specs/<feature>/security/incoming-threat-model.yaml
+```
+
+The patch holds only the entries that change, keyed by id. Everything it does not name stays as it is. See [patch documents](@/docs/threat-model-format.md#patch-documents) for the rules.
+
+## After a small spec edit
+
+Every edit to `spec.md` or `plan.md` outside the managed block raises C9 and blocks convergence, because the model may no longer describe the feature. When the edit changes no asset, flow, surface, or trust boundary, re-record the hashes without regenerating anything:
+
+```bash
+threatspec.sh rehash --dry-run   # which files changed
+threatspec.sh rehash
+```
+
+`rehash` is an acknowledgement that the model still holds, so the check command recommends it but never runs it. `tasks.md` is not hashed; editing it never causes drift.
+
+## Profile catalog
+
+`threatspec.sh techniques --profiles stride,llm --format md|json` prints each profile's asset types, surfaces, techniques (element kinds, required surfaces, CWEs, mappings, suggested mitigations), and mitigation patterns. It needs no feature directory. Without `--profiles` it uses the feature model's profiles, then the configuration, then `stride`. The model command reads the catalog this way; scripts should too, instead of parsing `profiles/*.yaml`.
+
 ## Coverage tables
 
 `threatspec.sh coverage --format md|json` prints, without an agent, every profile technique with its required surfaces and state (`threat`, `no-threat-detected`, `not-applicable`, `uncovered`, `surface-absent`) and every `SR-###` with threats, mitigations, tasks, and verification state. The check command uses it as the index for its semantic passes.

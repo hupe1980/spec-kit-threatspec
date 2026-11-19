@@ -3,7 +3,7 @@ schema_version: "1.0"
 extension:
   id: threatspec
   name: "ThreatSpec — Threat Modeling & Security Traceability"
-  version: "0.2.3"
+  version: "0.3.0"
   description: "STRIDE and AI/ML threat modeling with threat-to-test traceability and security convergence"
   category: process
   effect: read-write
@@ -41,7 +41,7 @@ provides:
   scripts:
     - name: threatspec-python
       file: scripts/python/threatspec.py
-      description: "ThreatSpec engine: paths, init, validate, merge, render, check, converge-scan, converge-apply"
+      description: "ThreatSpec engine: paths, init, validate, merge, rehash, render, techniques, check, coverage, converge-scan, converge-apply"
       runtimes: [python]
     - name: threatspec-bash
       file: scripts/bash/threatspec.sh

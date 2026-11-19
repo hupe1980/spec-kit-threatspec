@@ -4,6 +4,30 @@ All notable changes to the ThreatSpec extension are documented here. The format 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-19
+
+Field feedback from a full model → plan pass → check → converge cycle on a library project.
+
+### Added
+
+- `merge --patch`: a partial document keyed by id, so a plan pass or a single correction no longer re-sends the whole model. Each listed entry is merged into the existing one by JSON Merge Patch (RFC 7396): mappings merge, lists and scalars replace, `null` removes a key; an unknown id is added. `threatspec.actors`, `dispositions`, and `exclusions` are upserted by key and `surfaces` are added. Nothing the patch does not name is retired or dropped. A `remove:` list deletes structure entries, mitigations, requirements, and actors, retires threats, and drops `surface:<id>`, `disposition:<technique>`, `exclusion:<entity>`. `verification[]` and `decisions[]` stay append-only. The patched model is validated as a whole; a rejected patch writes nothing.
+- `rehash`: re-records the `spec.md`/`plan.md` hashes without touching the model, for a reviewed edit that changes no asset, flow, surface, or trust boundary. `--dry-run` lists what changed. The C9 finding and the check command's S1 pass recommend it; the agent does not run it.
+- `techniques [--profiles a,b] [--format md|json]`: prints each profile's asset types, surfaces, techniques, and mitigation patterns. It needs no feature directory. The model command uses it instead of reading the profile YAML.
+- `stride` profile 0.2: technique `dependency-compromise` (Tampering, surface `third-party-code`, CWE-1357/1395/494/829, OWASP Top 10:2025 A03) with the patterns `dependency-pinning`, `dependency-gate`, `provenance-verification`, and `sbom-monitoring`. Existing models are unaffected until they record the `third-party-code` surface; `coverage` lists the technique as `surface-absent` until then.
+
+### Changed
+
+- The `authorization` surface now reads as any decision that permits or denies an action, including a rule-based eligibility or entitlement decision without an authenticated principal, so `broken-access-control` applies to such library functions.
+- A full `merge` reports what it did on its own: a `note:` line names structure entries it dropped because the incoming model omitted them, and mitigations or requirements it kept although the incoming model omitted them. The stats line gained `removed`.
+- The model command chooses the merge mode by run type: complete model for an initial or update run, patch for `--from-plan` and targeted changes.
+
+### Fixed
+
+- `specify extension add --dev` copied the checkout's `.git` directory (and would have copied `.venv`, editor folders, and tool caches) into `.specify/extensions/threatspec/`, because Spec Kit excludes only what `.extensionignore` names. They are now listed, and CI asserts the install is clean.
+- Command prompts repeated the user input: agents substitute `$ARGUMENTS` textually, and each command named it two to four times, once inside a sentence. Each prompt now expands it once.
+- A full `merge` could never delete a stale mitigation or requirement: one missing from the incoming model was silently re-added. The carry-over is kept as a safeguard, is now reported, and `merge --patch` with `remove:` deletes explicitly.
+- SARIF output reports tool version `0.3.0`.
+
 ## [0.2.3] - 2026-11-18
 
 ### Fixed

@@ -43,7 +43,7 @@ Asset ─▶ Threat ─▶ Mitigation ─▶ Security Requirement (SR-###)
 
 ```bash
 # From a release archive (the CLI asks you to confirm the untrusted URL)
-specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.2.3.zip
+specify extension add threatspec --from https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.3.0.zip
 
 # Or register this repository's catalog once, then install by name
 specify extension catalog add https://raw.githubusercontent.com/hupe1980/spec-kit-threatspec/main/catalog.json --name threatspec --install-allowed
@@ -84,7 +84,7 @@ Requirements: Spec Kit ≥ 1.0.0, Python 3 with PyYAML (or [uv](https://docs.ast
 | C11 | Technique marked not-applicable while its surfaces are present | 🟡 MEDIUM |
 | C12 | Threat marked needs-clarification | 🟡 MEDIUM |
 
-The engine also prints mechanical coverage tables (`threatspec.sh coverage`: technique × surface × threat/disposition, and SR → threats/mitigations/tasks/verification). It runs without an agent, so the same checks work in CI:
+The engine also prints mechanical coverage tables (`threatspec.sh coverage`: technique × surface × threat/disposition, and SR → threats/mitigations/tasks/verification) and the profile catalog (`threatspec.sh techniques --profiles stride,llm --format md|json`: asset types, surfaces, techniques, mitigation patterns), so nothing has to parse the profile YAML. It runs without an agent, so the same checks work in CI:
 
 ```bash
 .specify/extensions/threatspec/scripts/bash/threatspec.sh check --feature-dir specs/007-rag-assistant --format sarif --output threatspec.sarif
@@ -106,7 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hupe1980/spec-kit-threatspec@v0.2.3
+      - uses: hupe1980/spec-kit-threatspec@v0.3.0
         with:
           feature-dir: specs/007-rag-assistant   # optional; auto-detected from SPECIFY_FEATURE or the branch
           strict: "false"
@@ -124,7 +124,7 @@ Profiles supply techniques, applicability surfaces, and edition-pinned mappings:
 
 | Profile | Foundation |
 |---|---|
-| `stride` | STRIDE per element (default) |
+| `stride` | STRIDE per element (default), plus `dependency-compromise` for third-party code (OWASP Top 10:2025 A03, SLSA) |
 | `llm` | OWASP Top 10 for LLM Applications 2026, MITRE ATLAS |
 | `agent` | OWASP Top 10 for Agentic Applications 2026, MAESTRO layers |
 
@@ -157,9 +157,12 @@ Every key, its default, what reads it, and the merge order: [configuration refer
 | `threatspec: no feature directory found` | Pass `--feature-dir specs/<feature>` before the subcommand, or set `SPECIFY_FEATURE`. Resolution order: flag, `SPECIFY_FEATURE`, git branch name, newest `specs/*/spec.md`. |
 | `YAML parse error … quote any scalar` | A `[NEEDS CLARIFICATION: …]` name or a value containing `: ` is unquoted in the incoming model. Quote it and re-run `merge`. |
 | `merge rejected, N validation error(s)` | The incoming model references an id that does not exist. The errors name the entity and field; fix the file, do not bypass. |
+| A plan pass means re-sending the whole model | It does not: write only the changed entries and run `merge --patch`. Entries are keyed by id (JSON Merge Patch per entry), nothing else is retired or dropped, and a `remove:` list deletes explicitly. See the [format reference](https://hupe1980.github.io/spec-kit-threatspec/docs/threat-model-format/#patch-documents). |
+| `note: kept although absent from the incoming model` | A full merge never deletes a mitigation or requirement the incoming model forgot. To delete one, list its id under `remove:` in a patch. |
+| A stray `.git` directory under `.specify/extensions/threatspec/` | Installed with `--dev` from a checkout older than 0.3.0. Delete the directory, or reinstall. |
 | Commands do not appear in the agent | Run `specify extension list`; if installed, restart the agent so it reloads `.claude/commands` or `.claude/skills`. |
 | Converge lists a test under `ambiguous_test_files` | Another feature defines the same `SR-###` (ids are feature-local). Qualify the marker in the test as `<feature-slug>/SR-###`, e.g. `rag-assistant/SR-001` or `test_rag_assistant_sr_001`; `converge-scan` prints the exact form as `evidence.marker`. |
-| C9 drift right after editing `spec.md` | Expected: re-run the model command so the hashes match. Rendering the SR block does not count as drift. |
+| C9 drift right after editing `spec.md` | Expected. If the edit adds or changes an asset, flow, surface, or trust boundary, re-run the model command. If it does not (wording, formatting, a fix elsewhere), run `threatspec.sh rehash` to record that the model still holds. Only `spec.md` and `plan.md` are hashed, and rendering the SR block does not count as drift. |
 | Convergence keeps reporting `never hashed` | The model predates source hashing; run the model command once to record hashes. |
 
 ## 🤝 Contributing

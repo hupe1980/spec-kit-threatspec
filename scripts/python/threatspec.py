@@ -5,7 +5,10 @@ Subcommands
   paths           Resolve repo root, feature directory and artifact paths
   init            Create an empty threat-model.yaml for a feature
   validate        Validate a model against the ThreatSpec schema and reference rules
-  merge           Merge an LLM-produced model into the existing one (stable ids, human fields kept)
+  merge           Merge an LLM-produced model into the existing one (stable ids, human fields kept);
+                  --patch applies a partial document keyed by id instead of a complete one
+  rehash          Re-record the spec.md/plan.md hashes after an edit that left the model valid
+  techniques      List profile surfaces, techniques, and mitigation patterns (md | json); needs no feature
   render          Render threat-model.md and the SR block inside spec.md
   check           Run gap checks C1–C12 (md | json | sarif), exit code reflects severity
   coverage        Technique × surface × threat/disposition and SR → threat/mitigation/task tables
@@ -718,7 +721,8 @@ def run_checks(paths: Paths, cfg: Dict[str, Any]) -> Tuple[List[Finding], Dict[s
     for src in sources_for(paths):
         if recorded.get(src["path"]) and recorded[src["path"]] != src["sha256"]:
             findings.append(Finding("C9", "medium", src["path"], f"{src['path']} changed since the model was generated",
-                                    "Re-run the model command to refresh the threat model"))
+                                    "Re-run the model command to refresh the threat model; if you reviewed the edit and it "
+                                    "changes no asset, flow, surface, or trust boundary, run `threatspec.sh rehash`"))
         elif not recorded.get(src["path"]):
             findings.append(Finding("C9", "low", src["path"], f"{src['path']} was not hashed when the model was generated",
                                     "Re-run the model command"))
@@ -845,7 +849,7 @@ def report_sarif(findings: List[Finding], paths: Paths) -> str:
         })
     sarif = {
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json", "version": "2.1.0",
-        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.2.3",
+        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.3.0",
                                        "informationUri": "https://github.com/hupe1980/spec-kit-threatspec",
                                        "rules": list(rules.values())}},
                   "results": results}],
@@ -939,9 +943,129 @@ def coverage_md(c: Dict[str, Any]) -> str:
 HUMAN_THREAT_FIELDS = ("status", "severity_override", "notes", "superseded_by", "retired_reason")
 
 
+STRUCTURE_LISTS = ("trustZones", "assets", "components", "dataflows")
+ENTITY_LISTS = STRUCTURE_LISTS + ("threats", "mitigations", "requirements", "verification", "decisions")
+HISTORY_LISTS = ("verification", "decisions")
+RETIRED_DEFAULT = "Not present in the regenerated model"
+# threatspec lists that a patch upserts by key instead of replacing
+TS_KEYED_LISTS = {"actors": "id", "dispositions": "technique", "exclusions": "entity"}
+
+
+def merge_patch(target: Any, patch: Any) -> Any:
+    """RFC 7396 JSON Merge Patch: mappings merge recursively, `null` removes a key, everything else replaces."""
+    if not isinstance(patch, dict):
+        return copy.deepcopy(patch)
+    out = copy.deepcopy(target) if isinstance(target, dict) else {}
+    for k, v in patch.items():
+        if v is None:
+            out.pop(k, None)
+        else:
+            out[k] = merge_patch(out.get(k), v)
+    return out
+
+
+def apply_patch(existing: Dict[str, Any], patch: Dict[str, Any]) -> Tuple[Dict[str, Any], Set[str], List[str]]:
+    """Turn a partial document into a complete incoming model.
+
+    Entity lists are keyed by `id`: a listed entry is merged into the existing one (RFC 7396), an unknown id is
+    added, and entries the patch does not mention stay as they are. `threatspec.actors`, `dispositions`, and
+    `exclusions` are upserted by their key, `surfaces` are added, other `threatspec` keys replace. `remove:` lists
+    ids to delete (structure, mitigations, requirements, actors), to retire (threats), or to drop (`surface:<id>`,
+    `disposition:<technique>`, `exclusion:<entity>`). History (`verification`, `decisions`) is append-only.
+
+    Returns (incoming, removed ids, errors).
+    """
+    errors: List[str] = []
+    known = set(ENTITY_LISTS) | {"otmVersion", "project", "threatspec", "representations", "remove"}
+    for key in patch:
+        if key not in known:
+            errors.append(f"patch: unknown top-level key '{key}'")
+    out = copy.deepcopy(existing)
+    if isinstance(patch.get("project"), dict):
+        out["project"] = merge_patch(out.get("project") or {}, patch["project"])
+    if "representations" in patch:
+        out["representations"] = copy.deepcopy(patch["representations"])
+
+    for key in ENTITY_LISTS:
+        entries = patch.get(key)
+        if entries is None:
+            continue
+        if not isinstance(entries, list):
+            errors.append(f"patch: {key} must be a list of entries with an id")
+            continue
+        current = index_by_id(out.get(key))
+        for n, entry in enumerate(entries):
+            if not isinstance(entry, dict) or not entry.get("id"):
+                errors.append(f"patch: {key}[{n}] has no id")
+                continue
+            if key in HISTORY_LISTS and entry["id"] in current:
+                if entry != current[entry["id"]]:
+                    errors.append(f"patch: {key}[{entry['id']}] already exists; history is append-only "
+                                  "(add a new entry instead of rewriting one)")
+                continue
+            current[entry["id"]] = merge_patch(current.get(entry["id"]), entry)
+        out[key] = list(current.values())
+
+    ts = out.setdefault("threatspec", {})
+    pts = patch.get("threatspec") or {}
+    if not isinstance(pts, dict):
+        errors.append("patch: threatspec must be a mapping")
+        pts = {}
+    for key, value in pts.items():
+        if key in TS_KEYED_LISTS:
+            field = TS_KEYED_LISTS[key]
+            current = {i.get(field): i for i in ts.get(key) or [] if isinstance(i, dict)}
+            for n, entry in enumerate(value or []):
+                if not isinstance(entry, dict) or not entry.get(field):
+                    errors.append(f"patch: threatspec.{key}[{n}] has no {field}")
+                    continue
+                current[entry[field]] = merge_patch(current.get(entry[field]), entry)
+            ts[key] = list(current.values())
+        elif key == "surfaces":
+            ts["surfaces"] = list(dict.fromkeys([*(ts.get("surfaces") or []), *(value or [])]))
+        elif key in ("profiles", "extends"):
+            ts[key] = copy.deepcopy(value)
+        elif key not in ("version", "generated", "sources"):  # engine-owned, recomputed on every merge
+            errors.append(f"patch: unknown threatspec key '{key}'")
+
+    removed: Set[str] = set()
+    remove = patch.get("remove") or []
+    if not isinstance(remove, list):
+        errors.append("patch: remove must be a list of ids")
+        remove = []
+    owner = {i: key for key in ENTITY_LISTS for i in index_by_id(out.get(key))}
+    ts_prefix = {"surface": ("surfaces", None), "disposition": ("dispositions", "technique"),
+                 "exclusion": ("exclusions", "entity")}
+    for rid in remove:
+        rid = str(rid)
+        prefix, _, rest = rid.partition(":")
+        if rest and prefix in ts_prefix:
+            key, field = ts_prefix[prefix]
+            before = ts.get(key) or []
+            after = [i for i in before if (i.get(field) if field else i) != rest]
+            if len(after) == len(before):
+                errors.append(f"patch: remove '{rid}' matches no {prefix}")
+            ts[key] = after
+        elif rid in index_by_id(ts.get("actors")):
+            ts["actors"] = [a for a in ts["actors"] if a.get("id") != rid]
+        elif rid not in owner:
+            errors.append(f"patch: remove '{rid}' matches nothing in the model")
+        elif owner[rid] in HISTORY_LISTS:
+            errors.append(f"patch: remove '{rid}' rejected; {owner[rid]} entries are history and are never deleted")
+        else:
+            out[owner[rid]] = [i for i in out[owner[rid]] if i.get("id") != rid]  # threats come back retired
+            removed.add(rid)
+    return out, removed, errors
+
+
 def merge_models(existing: Dict[str, Any], incoming: Dict[str, Any], paths: Paths,
-                 profiles: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], Dict[str, int]]:
-    stats = {"added": 0, "updated": 0, "retired": 0, "kept": 0}
+                 profiles: List[Dict[str, Any]], removed: Iterable[str] = (),
+                 notes: Optional[List[str]] = None) -> Tuple[Dict[str, Any], Dict[str, int]]:
+    """Merge a complete incoming model. `removed` names mitigations/requirements that must not be carried over
+    (and threats retired on request); `notes` collects what the merge dropped or kept on its own."""
+    removed = set(removed)
+    notes = notes if notes is not None else []
+    stats = {"added": 0, "updated": 0, "retired": 0, "kept": 0, "removed": 0}
     result = copy.deepcopy(incoming)
     result["otmVersion"] = existing.get("otmVersion") or incoming.get("otmVersion") or "0.2.0"
     result["project"] = deep_update(copy.deepcopy(existing.get("project") or {}), incoming.get("project") or {})
@@ -969,16 +1093,14 @@ def merge_models(existing: Dict[str, Any], incoming: Dict[str, Any], paths: Path
                     nat[f] = oat[f]
             if oat.get("status") in ("accepted", "transferred", "mitigated", "retired"):
                 nat["status"] = oat["status"]
-            stats["updated" if new_threats[tid] != old else "kept"] += 1
         else:
             retired = copy.deepcopy(old)
             rat = retired.setdefault("attributes", {})
             if rat.get("status") != "retired":
                 rat["status"] = "retired"
-                rat.setdefault("retired_reason", "Not present in the regenerated model")
+                rat.setdefault("retired_reason", "Retired by patch" if tid in removed else RETIRED_DEFAULT)
                 stats["retired"] += 1
             result.setdefault("threats", []).append(retired)
-    stats["added"] += sum(1 for tid in new_threats if tid not in old_threats)
     for t in result.get("threats") or []:
         at = t.setdefault("attributes", {})
         at.setdefault("status", "open")
@@ -996,25 +1118,104 @@ def merge_models(existing: Dict[str, Any], incoming: Dict[str, Any], paths: Path
             nat = m.setdefault("attributes", {})
             if "status" in oat and "status" not in nat:
                 nat["status"] = oat["status"]
+    # An incoming model that forgets a mitigation or requirement must not lose it (it may carry tasks and
+    # verification history); deleting one is explicit: `merge --patch` with `remove:`.
+    carried: List[str] = []
+    new_m = set(index_by_id(result.get("mitigations")))
     for m in old_m.values():
-        if m["id"] not in index_by_id(result.get("mitigations")):
+        if m["id"] not in new_m and m["id"] not in removed:
             result.setdefault("mitigations", []).append(m)
+            carried.append(m["id"])
     old_r = index_by_id(existing.get("requirements"))
     for r in result.get("requirements") or []:
         o = old_r.get(r["id"])
         if o and o.get("tasks") and not r.get("tasks"):
             r["tasks"] = o["tasks"]
+    new_r = set(index_by_id(result.get("requirements")))
     for r in old_r.values():
-        if r["id"] not in index_by_id(result.get("requirements")):
+        if r["id"] not in new_r and r["id"] not in removed:
             result.setdefault("requirements", []).append(r)
+            carried.append(r["id"])
+    if carried:
+        notes.append("kept although absent from the incoming model: " + ", ".join(sorted(carried))
+                     + " (to delete one, use `merge --patch` with a `remove:` list)")
     for key in ("verification", "decisions"):
         merged = index_by_id(existing.get(key))
         for item in result.get(key) or []:
             merged.setdefault(item["id"], item)
         result[key] = list(merged.values())
-    for key in ("trustZones", "assets", "components", "dataflows"):
+    dropped: List[str] = []
+    for key in STRUCTURE_LISTS:
         result.setdefault(key, [])
+        gone = sorted(set(index_by_id(existing.get(key))) - set(index_by_id(result.get(key))))
+        dropped += [g for g in gone if g not in removed]
+    if dropped:
+        notes.append("dropped because absent from the incoming model: " + ", ".join(dropped)
+                     + " (a full merge replaces the structure lists; use `merge --patch` to change single entries)")
+    # stats cover every entity kind, so a patch that only touches a mitigation or a component is visible
+    newly_retired = {t["id"] for t in result.get("threats") or []
+                     if (t.get("attributes") or {}).get("status") == "retired"
+                     and ((old_threats.get(t["id"]) or {}).get("attributes") or {}).get("status") != "retired"}
+    for key in ENTITY_LISTS:
+        old, new = index_by_id(existing.get(key)), index_by_id(result.get(key))
+        stats["added"] += len(set(new) - set(old))
+        stats["removed"] += len(set(old) - set(new))
+        for i in set(old) & set(new):
+            if i not in newly_retired:
+                stats["updated" if new[i] != old[i] else "kept"] += 1
     return result, stats
+
+
+# --------------------------------------------------------------------------- techniques
+
+def profile_catalog(names: Sequence[str]) -> List[Dict[str, Any]]:
+    """The parts of each profile a model author needs, in a stable shape."""
+    out = []
+    missing = [n for n in names if not (PROFILES_DIR / f"{n}.yaml").exists()]
+    if missing:
+        available = ", ".join(sorted(p.stem for p in PROFILES_DIR.glob("*.yaml")))
+        raise SystemExit(f"threatspec: unknown profile(s): {', '.join(missing)} (available: {available})")
+    for prof in load_profiles(names):
+        meta = prof.get("profile") or {}
+        out.append({
+            "profile": meta.get("id"), "name": meta.get("name"), "version": str(meta.get("version", "")),
+            "foundation": meta.get("foundation"),
+            "element_kinds": prof.get("element_kinds") or [],
+            "asset_types": prof.get("asset_types") or [],
+            "surfaces": prof.get("surfaces") or [],
+            "techniques": [{"id": t["id"], "name": t.get("name"), "category": t.get("category"),
+                            "applies_to": t.get("applies_to") or [], "surfaces": t.get("surfaces") or [],
+                            "cwes": t.get("cwes") or [], "mappings": t.get("mappings") or {},
+                            "mitigations": t.get("mitigations") or []} for t in prof.get("techniques") or []],
+            "mitigation_patterns": prof.get("mitigation_patterns") or [],
+        })
+    return out
+
+
+def catalog_md(catalog: List[Dict[str, Any]]) -> str:
+    L: List[str] = []
+    for c in catalog:
+        L += [f"## Profile `{c['profile']}`: {c['name']} (v{c['version']})", ""]
+        if c["foundation"]:
+            L += [f"Foundation: {c['foundation']}", ""]
+        if c["element_kinds"]:
+            L += [f"Element kinds: {', '.join(c['element_kinds'])}", ""]
+        L += ["### Asset types", "", "| Id | Description |", "|---|---|"]
+        L += [f"| `{a['id']}` | {md_escape(a.get('description'))} |" for a in c["asset_types"]]
+        L += ["", "### Surfaces", "", "| Id | Present when |", "|---|---|"]
+        L += [f"| `{s['id']}` | {md_escape(s.get('description'))} |" for s in c["surfaces"]]
+        L += ["", "### Techniques", "",
+              "| Id | Name | Category | Applies to | Requires surfaces | CWEs | Mappings | Suggested mitigations |",
+              "|---|---|---|---|---|---|---|---|"]
+        for t in c["techniques"]:
+            maps = "; ".join(f"{k}: {', '.join(v)}" for k, v in sorted(t["mappings"].items())) or "—"
+            L.append(f"| `{t['id']}` | {md_escape(t['name'])} | {t['category']} | {', '.join(t['applies_to']) or '—'} | "
+                     f"{', '.join(t['surfaces']) or '— (always)'} | {', '.join(t['cwes']) or '—'} | {maps} | "
+                     f"{', '.join(t['mitigations']) or '—'} |")
+        L += ["", "### Mitigation patterns", "", "| Id | Name | Kind |", "|---|---|---|"]
+        L += [f"| `{m['id']}` | {md_escape(m.get('name'))} | {m.get('kind', '')} |" for m in c["mitigation_patterns"]]
+        L.append("")
+    return "\n".join(L)
 
 
 # --------------------------------------------------------------------------- render
@@ -1710,9 +1911,24 @@ def cmd_merge(args: argparse.Namespace) -> int:
         raise SystemExit("threatspec: no feature directory found; pass --feature-dir")
     cfg = load_config(p.repo)
     incoming = load_model(Path(args.incoming))
-    existing = load_model(p.model) if p.model.exists() else empty_model(p.feature.name, p.feature.name, cfg.get("profiles") or ["stride"], None)
+    removed: Set[str] = set()
+    notes: List[str] = []
+    if args.patch:
+        if not p.model.exists():
+            raise SystemExit("threatspec: merge --patch needs an existing threat-model.yaml; run a full merge first")
+        existing = load_model(p.model)
+        incoming, removed, patch_errors = apply_patch(existing, incoming)
+        if patch_errors:
+            for e in patch_errors:
+                print(f"ERROR: {e}", file=sys.stderr)
+            print(f"threatspec: patch rejected, {len(patch_errors)} error(s); nothing was written", file=sys.stderr)
+            return 1
+    else:
+        if "remove" in incoming:
+            raise SystemExit("threatspec: `remove:` is only valid in a patch; re-run with `merge --patch`")
+        existing = load_model(p.model) if p.model.exists() else empty_model(p.feature.name, p.feature.name, cfg.get("profiles") or ["stride"], None)
     profiles = load_profiles((incoming.get("threatspec") or {}).get("profiles") or (existing.get("threatspec") or {}).get("profiles") or cfg.get("profiles") or ["stride"])
-    merged, stats = merge_models(existing, incoming, p, profiles)
+    merged, stats = merge_models(existing, incoming, p, profiles, removed, notes)
     baseline = load_baseline(merged, p.model)
     errors = schema_validate(merged) + reference_errors(merged_view(merged, baseline)) + baseline_conflicts(merged, baseline)
     if errors and not args.allow_invalid:
@@ -1724,8 +1940,58 @@ def cmd_merge(args: argparse.Namespace) -> int:
         print(dump_yaml(merged))
     else:
         write_text(p.model, dump_yaml(merged))
-        print(f"merged: {p.model}")
+        print(f"{'patched' if args.patch else 'merged'}: {p.model}")
+    for n in notes:
+        print(f"note: {n}", file=sys.stderr)
     print(json.dumps(stats))
+    return 0
+
+
+def cmd_rehash(args: argparse.Namespace) -> int:
+    """Re-record source hashes without touching the model: for edits that change no asset, flow, surface, or boundary."""
+    p = get_paths(args)
+    if not p.feature or not p.model.exists():
+        raise SystemExit("threatspec: threat-model.yaml not found; run the model command first")
+    model = load_model(p.model)
+    ts = model.setdefault("threatspec", {})
+    recorded = {s.get("path"): s.get("sha256") for s in ts.get("sources") or []}
+    current = sources_for(p)
+    changed = []
+    for s in current:
+        state = "unchanged" if recorded.get(s["path"]) == s["sha256"] else ("changed" if recorded.get(s["path"]) else "new")
+        if state != "unchanged":
+            changed.append(s["path"])
+        print(f"{s['path']}: {state}")
+    for gone in sorted(set(recorded) - {s["path"] for s in current}):
+        changed.append(gone)
+        print(f"{gone}: removed")
+    if not changed:
+        print("rehash: hashes already current")
+        return 0
+    if args.dry_run:
+        print("rehash: dry run, nothing written")
+        return 0
+    ts["sources"] = current
+    write_text(p.model, dump_yaml(model))
+    print(f"rehashed: {p.model} ({', '.join(changed)}). This records that the model still holds for the edited "
+          "source; if the edit added an asset, flow, surface, or trust boundary, re-run the model command instead.")
+    return 0
+
+
+def cmd_techniques(args: argparse.Namespace) -> int:
+    names = [n.strip() for n in (args.profiles or "").split(",") if n.strip()]
+    if not names:
+        p = get_paths(args)
+        if p.feature and p.model.exists():
+            names = (load_model(p.model).get("threatspec") or {}).get("profiles") or []
+        names = names or load_config(p.repo).get("profiles") or ["stride"]
+    catalog = profile_catalog(names)
+    text = json.dumps({"profiles": catalog}, indent=2) + "\n" if args.format == "json" else catalog_md(catalog)
+    if args.output:
+        write_text(Path(args.output), text)
+        print(f"written: {args.output}")
+    else:
+        sys.stdout.write(text)
     return 0
 
 
@@ -1827,7 +2093,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--force", action="store_true"); s.set_defaults(fn=cmd_init)
     s = sub.add_parser("validate", help="Validate a model file"); s.add_argument("model"); s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_validate)
     s = sub.add_parser("merge", help="Merge an incoming model into the feature model"); s.add_argument("--incoming", required=True)
+    s.add_argument("--patch", action="store_true", help="Incoming is a partial document keyed by id (RFC 7396 per entry, optional `remove:` list)")
     s.add_argument("--dry-run", action="store_true"); s.add_argument("--allow-invalid", action="store_true"); s.set_defaults(fn=cmd_merge)
+    s = sub.add_parser("rehash", help="Re-record spec.md/plan.md hashes after an edit that left the model valid")
+    s.add_argument("--dry-run", action="store_true"); s.set_defaults(fn=cmd_rehash)
+    s = sub.add_parser("techniques", help="List profile surfaces, techniques, and mitigation patterns")
+    s.add_argument("--profiles", "--profile", dest="profiles", help="Comma-separated profile ids (default: the feature model's, then config, then stride)")
+    s.add_argument("--format", choices=["md", "json"], default="md"); s.add_argument("--output"); s.set_defaults(fn=cmd_techniques)
     s = sub.add_parser("render", help="Render Markdown and the SR block"); s.add_argument("--no-spec", action="store_true")
     s.add_argument("--no-markdown", action="store_true"); s.set_defaults(fn=cmd_render)
     s = sub.add_parser("check", help="Run gap checks"); s.add_argument("--format", choices=["md", "json", "sarif"], default="md")

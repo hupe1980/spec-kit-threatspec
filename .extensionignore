@@ -1,4 +1,14 @@
 # Excluded from `specify extension add` installs (development-only content)
+# version control and local tooling: never part of an install
+.git
+.gitattributes
+.venv/
+.vscode/
+.idea/
+.DS_Store
+.ruff_cache/
+.mypy_cache/
+*-config.local.yml
 tests/
 site/
 preset/
