@@ -77,7 +77,7 @@ Upload the SARIF file with `github/codeql-action/upload-sarif` to see findings i
 The repository also ships a composite GitHub Action (`action.yml`) that runs the check, uploads SARIF under the `threatspec` category, and fails the job on HIGH/CRITICAL:
 
 ```yaml
-- uses: hupe1980/spec-kit-threatspec@v0.2.3
+- uses: hupe1980/spec-kit-threatspec@v0.3.1
   with:
     feature-dir: specs/007-rag-assistant
     strict: "false"          # "true" also fails on MEDIUM
@@ -96,6 +96,8 @@ threatspec.sh merge --patch --incoming specs/<feature>/security/incoming-threat-
 ```
 
 The patch holds only the entries that change, keyed by id. Everything it does not name stays as it is. See [patch documents](@/docs/threat-model-format.md#patch-documents) for the rules.
+
+A patch keeps the recorded `spec.md`/`plan.md` hashes, so a correction that only changes a technique or a touchpoint does not clear pending C9 drift. When the patch is the answer to the edit that caused the drift (the plan pass, a clarification), add `--record-sources`; the model command does this on its own for those runs.
 
 ## After a small spec edit
 
@@ -134,7 +136,11 @@ def test_rag_assistant_sr_003_injected_instruction_is_ignored(): ...
 it("rag-assistant/SR-003: injected instruction is ignored", () => { /* … */ });
 ```
 
-Any one of these forms is enough. The qualifier is the feature directory without its number or timestamp prefix (`converge-scan` prints it as `evidence.marker`); when two features share a slug, use the full directory name. Identifier forms need underscores (`test_rag_assistant_sr_003`); CamelCase names such as Go's `TestRagAssistantSR003` are not recognised, so put the marker in a comment there. Bare `SR-003` still works until a second feature defines `SR-003`; from then on the file is reported under `ambiguous_test_files`, `converge-apply` refuses to accept it as evidence, and the remediation task asks for the qualified marker.
+Any one of these forms is enough. The qualifier is the feature directory without its number or timestamp prefix (`converge-scan` prints it as `evidence.marker`); when two features share a slug, use the full directory name. Identifier forms need underscores (`test_rag_assistant_sr_003`); CamelCase names such as Go's `TestRagAssistantSR003` are not recognised, so put the marker in a comment there. Projects that keep planning ids out of tracked files set `evidence_markers: []`: the engine then ties no file to a requirement, remediation tasks do not ask for a marker, and converge finds the tests from the touchpoints and acceptance scenarios. Bare `SR-003` still works until a second feature defines `SR-003`; from then on the file is reported under `ambiguous_test_files`, `converge-apply` refuses to accept it as evidence, and the remediation task asks for the qualified marker.
+
+## An independent judge
+
+Run converge in a fresh session (or a separate agent given only the converge command) rather than in the one that wrote the code. An implementer's session knows what it meant to build and reads that intent into the code; a judge that only has the requirements, the acceptance scenarios, and the files finds the gaps. In field use a separate judge found control gaps and missing scenario tests that the implementers' own run had passed.
 
 ## Re-running converge
 

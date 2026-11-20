@@ -132,6 +132,7 @@ Also run plain STRIDE per element even when the LLM/agent profiles are active; t
 - For every threat with `disposition: threat`, add at least one `mitigations[]` entry (`id: mitigation.<slug>`, `attributes.threats`, `attributes.kind`, `riskReduction`, `attributes.touchpoints`, `attributes.status: required`). Touchpoints name the files or components in the plan where the control lands; on a first run without `plan.md`, use component or flow ids from the model (e.g. `component.agent`) and replace them with paths in the `--from-plan` pass. Prefer profile `mitigation_patterns`; group one mitigation across several threats when it genuinely addresses all of them.
 - If the team explicitly accepts or transfers a risk in the spec or constitution, record a `decisions[]` entry with `owner`, `rationale`, `expires` (YYYY-MM-DD) instead of inventing a mitigation. Never create a decision on your own initiative; propose it in the report instead.
 - Derive `requirements[]`: one `SR-###` per testable obligation (several mitigations may share one). Number sequentially, continuing from the highest existing `SR-###` in the model or baseline; never reuse a baseline id (the engine rejects it as C2). Ids are feature-local: do not look at other features' models, and do not renumber to avoid their ids. Each has an imperative `statement` (MUST/MUST NOT), `priority` (P1 for critical/high threats), `mitigations`, and one or more `acceptance` scenarios in Given/When/Then form that a test can implement. Keep `tasks` empty; `check` and `converge` fill it from `tasks.md`.
+- A requirement that limits, slows, or locks out (rate limits, lockouts, quotas, throttles) names its key: per account, per credential, per tenant, per address, or a combination. Then ask whom that key can lock out: an address key behind a shared proxy or NAT locks out every user behind it, an account key lets anyone lock a victim out by failing on purpose. Put the key in the `statement` and add an acceptance scenario for the legitimate user who shares it.
 
 ### 5. Merge, validate, render
 
@@ -157,7 +158,7 @@ mkdir -p "$SECURITY_DIR"
 .specify/extensions/threatspec/scripts/bash/threatspec.sh merge --incoming "$SECURITY_DIR/incoming-threat-model.yaml"
 ```
 
-The engine keeps stable ids, preserves human-owned fields, retires missing threats, recomputes severity, hashes `spec.md`/`plan.md` into `threatspec.sources`, sorts deterministically, and validates against the schema and the rules above. A full merge replaces `trustZones`, `assets`, `components`, and `dataflows` with the incoming lists and keeps mitigations and requirements the incoming model forgot; it prints a `note:` line for each case, which you repeat in your report.
+The engine keeps stable ids, preserves human-owned fields, retires missing threats, recomputes severity, hashes `spec.md`/`plan.md` into `threatspec.sources` (full merge only, see below), sorts deterministically, and validates against the schema and the rules above. A full merge replaces `trustZones`, `assets`, `components`, and `dataflows` with the incoming lists and keeps mitigations and requirements the incoming model forgot; it prints a `note:` line for each case, which you repeat in your report.
 
 **Patch merge.** Write only what changes to `$SECURITY_DIR/incoming-threat-model.yaml`:
 
@@ -184,6 +185,8 @@ remove:                                     # explicit deletions
 ```bash
 .specify/extensions/threatspec/scripts/bash/threatspec.sh merge --patch --incoming "$SECURITY_DIR/incoming-threat-model.yaml"
 ```
+
+A patch keeps the recorded `spec.md`/`plan.md` hashes, so it does not clear C9 drift. Add `--record-sources` only when the patch is your answer to the edit that caused the drift: the `--from-plan` pass (you read `plan.md`) or a change you derived from a `spec.md` edit you read in this run. A correction that does not come from a source edit (a technique, a touchpoint path, a typo) never takes the flag; the engine prints a `note:` when hashes were kept although a source changed, which you repeat in your report.
 
 Entries follow JSON Merge Patch (RFC 7396) per id. `verification[]` and `decisions[]` are append-only: a patch can add an entry, never rewrite or remove one. The patched model is validated as a whole, so a removal that leaves a dangling reference is rejected and nothing is written; remove or re-point the referrers in the same patch. Add `--dry-run` to print the result without writing.
 

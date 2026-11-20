@@ -569,3 +569,96 @@ def test_techniques_lists_profiles_without_a_feature(engine, tmp_path, capsys):
     assert "## Profile `stride`" in md and "| `dependency-compromise` |" in md and "`third-party-code`" in md
     with pytest.raises(SystemExit, match="unknown profile"):
         engine.main(["--repo", str(tmp_path), "techniques", "--profiles", "nope"])
+
+
+# --------------------------------------------------------------------------- 0.3.1 field feedback
+
+def _spec_hash(model):
+    return {s["path"]: s["sha256"] for s in model["threatspec"]["sources"]}
+
+
+def test_merge_patch_keeps_source_hashes_unless_asked(engine, rag_repo, rag_feature, capsys):
+    paths = engine.Paths(rag_repo, rag_feature)
+    assert _cli(engine, rag_repo, "rehash") == 0
+    recorded = _spec_hash(engine.load_model(paths.model))
+    paths.spec.write_text(paths.spec.read_text(encoding="utf-8") + "\nA new flow.\n", encoding="utf-8")
+    cfg = engine.load_config(rag_repo)
+    mit = engine.load_model(paths.model)["mitigations"][0]
+    patch = {"mitigations": [{"id": mit["id"], "attributes": {"touchpoints": ["src/elsewhere.py"]}}]}
+    capsys.readouterr()
+    assert _cli(engine, rag_repo, "merge", "--patch", "--incoming", _write_patch(rag_feature, patch)) == 0
+    assert "source hashes kept; spec.md changed" in capsys.readouterr().err
+    assert _spec_hash(engine.load_model(paths.model)) == recorded, "a patch is not an implicit rehash"
+    assert any(f.check == "C9" for f in engine.run_checks(paths, cfg)[0])
+    assert _cli(engine, rag_repo, "merge", "--patch", "--record-sources", "--incoming",
+                _write_patch(rag_feature, patch)) == 0
+    assert _spec_hash(engine.load_model(paths.model)) != recorded
+    assert not any(f.check == "C9" for f in engine.run_checks(paths, cfg)[0])
+
+
+def test_full_merge_still_records_source_hashes(engine, rag_repo, rag_feature):
+    paths = engine.Paths(rag_repo, rag_feature)
+    paths.spec.write_text(paths.spec.read_text(encoding="utf-8") + "\nEdited.\n", encoding="utf-8")
+    model = engine.load_model(paths.model)
+    merged, _ = engine.merge_models(model, model, paths, engine.load_profiles(["stride"]))
+    assert _spec_hash(merged)["spec.md"] == engine.source_hash(paths.spec)
+
+
+def _no_markers(engine, rag_repo):
+    cfg_dir = rag_repo / ".specify" / "extensions" / "threatspec"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    (cfg_dir / "threatspec-config.yml").write_text("verification:\n  evidence_markers: []\n", encoding="utf-8")
+    return engine.load_config(rag_repo)
+
+
+def test_empty_evidence_markers_turn_marker_evidence_off(engine, rag_repo, rag_feature):
+    cfg = _no_markers(engine, rag_repo)
+    assert cfg["verification"]["evidence_markers"] == []
+    ev = engine.find_evidence(rag_repo, "SR-001", cfg, [], feature=rag_feature.name)
+    assert ev["test_files"] == [] and ev["marker"] is None
+    assert engine.evidence_markers({}) == ["SR-"], "an absent key keeps the default"
+
+
+def test_remediation_tasks_omit_the_marker_clause_without_markers(engine, rag_repo, rag_feature):
+    paths = engine.Paths(rag_repo, rag_feature)
+    cfg = _no_markers(engine, rag_repo)
+    vf = rag_feature / "security" / "verdicts.yaml"
+    vf.parent.mkdir(parents=True, exist_ok=True)
+    vf.write_text(yaml.safe_dump({"verdicts": [
+        {"requirement": "SR-002", "verdict": "missing", "method": "review", "evidence": "none", "result": "fail"},
+    ]}), encoding="utf-8")
+    engine.converge_apply(paths, cfg, vf, commit="c1", only=["SR-002"])
+    appended = [l for l in paths.tasks.read_text(encoding="utf-8").splitlines() if "[SR-002] Implement" in l]
+    assert appended and "mark its test" not in appended[0]
+
+
+def test_evidence_scan_prunes_skipped_dirs_without_entering_them(engine, rag_repo, monkeypatch):
+    nm = rag_repo / "tests" / "node_modules" / "pkg"
+    nm.mkdir(parents=True)
+    (nm / "x.test.js").write_text("SR-001", encoding="utf-8")
+    seen = []
+    real_walk = engine.os.walk
+
+    def walk(top, *a, **k):
+        for root, dirs, files in real_walk(top, *a, **k):
+            seen.append(Path(root).name)
+            yield root, dirs, files
+    monkeypatch.setattr(engine.os, "walk", walk)
+    ev = engine.find_evidence(rag_repo, "SR-001", engine.load_config(rag_repo), [])
+    assert ev["test_files"] == ["tests/agent/test_prompt_injection.py"]
+    assert "node_modules" not in seen and "pkg" not in seen
+
+
+def test_evidence_scan_honours_gitignore(engine, rag_repo):
+    import shutil
+    import subprocess
+    if not shutil.which("git"):
+        pytest.skip("git not installed")
+    subprocess.run(["git", "init", "-q", str(rag_repo)], check=True)
+    (rag_repo / ".gitignore").write_text("tests/generated/\n", encoding="utf-8")
+    gen = rag_repo / "tests" / "generated"
+    gen.mkdir()
+    (gen / "snapshot.py").write_text("SR-001", encoding="utf-8")
+    (rag_repo / "tests" / "agent" / "test_untracked.py").write_text("# SR-001\n", encoding="utf-8")
+    ev = engine.find_evidence(rag_repo, "SR-001", engine.load_config(rag_repo), [])
+    assert ev["test_files"] == ["tests/agent/test_prompt_injection.py", "tests/agent/test_untracked.py"]
