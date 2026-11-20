@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "updated_at": "2026-11-19T00:00:00Z",
+  "updated_at": "2026-11-20T00:00:00Z",
   "catalog_url": "https://raw.githubusercontent.com/hupe1980/spec-kit-threatspec/main/catalog.json",
   "extensions": {
     "threatspec": {
@@ -8,8 +8,8 @@
       "id": "threatspec",
       "description": "STRIDE and AI/ML threat modeling with threat-to-test traceability and security convergence",
       "author": "hupe1980",
-      "version": "0.3.0",
-      "download_url": "https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.3.0.zip",
+      "version": "0.3.1",
+      "download_url": "https://github.com/hupe1980/spec-kit-threatspec/archive/refs/tags/v0.3.1.zip",
       "repository": "https://github.com/hupe1980/spec-kit-threatspec",
       "homepage": "https://github.com/hupe1980/spec-kit-threatspec",
       "documentation": "https://hupe1980.github.io/spec-kit-threatspec/",
@@ -33,7 +33,7 @@
       ],
       "verified": false,
       "created_at": "2026-09-21T00:00:00Z",
-      "updated_at": "2026-11-19T00:00:00Z"
+      "updated_at": "2026-11-20T00:00:00Z"
     }
   }
 }

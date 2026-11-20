@@ -130,8 +130,8 @@ verification:
 
 | Key | Default | Consumed by | Effect |
 |---|---|---|---|
-| `test_dirs` | `[tests, test, spec, __tests__]` | engine | Directories walked when collecting evidence. |
-| `evidence_markers` | `["SR-"]` | engine | Substrings searched in those files to tie a test to a requirement. A marker may be qualified with the feature (`rag-assistant/SR-001`, `test_rag_assistant_sr_001`); a bare one counts only while no other feature defines the same id. |
+| `test_dirs` | `[tests, test, spec, __tests__]` | engine | Directories searched when collecting evidence. In a git work tree the engine lists them with `git ls-files`, so anything a `.gitignore` excludes is skipped; elsewhere it walks them and never enters `node_modules`, `dist`, `build`, `target`, `vendor`, `coverage`, `__pycache__`, or hidden directories. |
+| `evidence_markers` | `["SR-"]` | engine | Substrings searched in those files to tie a test to a requirement. A marker may be qualified with the feature (`rag-assistant/SR-001`, `test_rag_assistant_sr_001`); a bare one counts only while no other feature defines the same id. `[]` turns marker evidence off for projects that keep planning ids out of tracked files: no file is tied by marker, `evidence.marker` is `null`, and remediation tasks do not ask for one. Omitting the key keeps the default. |
 | `test_command` | `""` (none) | agent | When non-empty, converge runs exactly this command once from the repository root and treats per-test results as evidence. Empty means evidence is located but nothing is executed. `--run-tests` in `$ARGUMENTS` also triggers it, but only if a command is configured. |
 | `scanners` | `[]` | agent | Scanner outputs converge may cite as evidence, recorded with `method: scan`. Never as a verdict on its own. |
 

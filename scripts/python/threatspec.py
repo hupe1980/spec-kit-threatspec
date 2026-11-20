@@ -849,7 +849,7 @@ def report_sarif(findings: List[Finding], paths: Paths) -> str:
         })
     sarif = {
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json", "version": "2.1.0",
-        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.3.0",
+        "runs": [{"tool": {"driver": {"name": "threatspec", "version": "0.3.1",
                                        "informationUri": "https://github.com/hupe1980/spec-kit-threatspec",
                                        "rules": list(rules.values())}},
                   "results": results}],
@@ -1060,9 +1060,10 @@ def apply_patch(existing: Dict[str, Any], patch: Dict[str, Any]) -> Tuple[Dict[s
 
 def merge_models(existing: Dict[str, Any], incoming: Dict[str, Any], paths: Paths,
                  profiles: List[Dict[str, Any]], removed: Iterable[str] = (),
-                 notes: Optional[List[str]] = None) -> Tuple[Dict[str, Any], Dict[str, int]]:
+                 notes: Optional[List[str]] = None, record_sources: bool = True) -> Tuple[Dict[str, Any], Dict[str, int]]:
     """Merge a complete incoming model. `removed` names mitigations/requirements that must not be carried over
-    (and threats retired on request); `notes` collects what the merge dropped or kept on its own."""
+    (and threats retired on request); `notes` collects what the merge dropped or kept on its own. With
+    `record_sources` false the recorded spec.md/plan.md hashes are kept, so the merge acknowledges no drift."""
     removed = set(removed)
     notes = notes if notes is not None else []
     stats = {"added": 0, "updated": 0, "retired": 0, "kept": 0, "removed": 0}
@@ -1075,7 +1076,16 @@ def merge_models(existing: Dict[str, Any], incoming: Dict[str, Any], paths: Path
     ts_new["generated"] = now_iso()
     ts_new["profiles"] = ts_new.get("profiles") or ts_old.get("profiles") or ["stride"]
     ts_new["extends"] = ts_new.get("extends", ts_old.get("extends"))
-    ts_new["sources"] = sources_for(paths)
+    current = sources_for(paths)
+    if record_sources or not ts_old.get("sources"):
+        ts_new["sources"] = current
+    else:
+        ts_new["sources"] = copy.deepcopy(ts_old["sources"])
+        recorded = {x.get("path"): x.get("sha256") for x in ts_old["sources"]}
+        changed = [x["path"] for x in current if recorded.get(x["path"]) != x["sha256"]]
+        if changed:
+            notes.append(f"source hashes kept; {', '.join(changed)} changed since they were recorded, so C9 stays "
+                         "until the model accounts for the edit (`merge --patch --record-sources`) or `rehash`")
     for key in ("surfaces", "dispositions", "actors", "exclusions"):
         ts_new.setdefault(key, ts_old.get(key) or [])
 
@@ -1499,13 +1509,38 @@ def features_defining(repo: Path, rid: str, exclude: Optional[Path] = None,
     return [n for n in idx.get(rid, []) if exclude is None or n != exclude.name]
 
 
+def evidence_files(repo: Path, base: Path) -> Iterable[Path]:
+    """Files under `base` worth searching for markers. In a git work tree: tracked and untracked files that no
+    .gitignore excludes. Elsewhere: a walk that never descends into a skipped or hidden directory."""
+    try:
+        out = subprocess.run(["git", "-C", str(repo), "ls-files", "-z", "-co", "--exclude-standard", "--",
+                              base.relative_to(repo).as_posix()], capture_output=True, timeout=60)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        out = None
+    if out is not None and out.returncode == 0:
+        for rel in out.stdout.decode("utf-8", "surrogateescape").split("\0"):
+            if rel:
+                yield repo / rel
+        return
+    for root, dirs, files in os.walk(base):
+        dirs[:] = sorted(d for d in dirs if d not in EVIDENCE_SKIP_DIRS and not d.startswith("."))
+        for name in sorted(files):
+            yield Path(root) / name
+
+
+def evidence_markers(cfg: Dict[str, Any]) -> List[str]:
+    """Configured markers. Absent means the default `SR-`; an empty list turns marker evidence off."""
+    markers = (cfg.get("verification") or {}).get("evidence_markers")
+    return ["SR-"] if markers is None else [str(m) for m in markers if str(m).strip()]
+
+
 def find_evidence(repo: Path, rid: str, cfg: Dict[str, Any], touchpoints: List[str],
                   feature: Optional[str] = None, other_features: Sequence[str] = ()) -> Dict[str, Any]:
     """Test files that mention `rid`. A qualified marker (`rag-assistant/SR-001`, `test_rag_assistant_sr_001`)
     counts only for the feature it names. A bare marker (`SR-001`) counts only while no other feature defines the
     same id; otherwise the file is listed under `ambiguous_test_files` and is not evidence until it is qualified."""
     dirs = (cfg.get("verification") or {}).get("test_dirs") or ["tests", "test", "spec", "__tests__"]
-    markers = (cfg.get("verification") or {}).get("evidence_markers") or ["SR-"]
+    markers = evidence_markers(cfg)
     hits: List[str] = []
     ambiguous: List[Dict[str, Any]] = []
     foreign: List[Dict[str, Any]] = []
@@ -1515,12 +1550,12 @@ def find_evidence(repo: Path, rid: str, cfg: Dict[str, Any], touchpoints: List[s
     # feature name and '/' or '_': rag-assistant/SR-001, 007-rag-assistant/SR_001, test_rag_assistant_sr_001.
     ids = "|".join(re.escape(m.rstrip("-_")) + r"[-_]?" + re.escape(number) + r"(?!\d)" for m in markers)
     pat = re.compile(r"(?:(?P<q>[A-Za-z0-9][A-Za-z0-9._-]*?)[/_])?(?:" + ids + ")", re.I)
-    for d in dirs:
+    for d in dirs if markers else []:
         base = repo / d
         if not base.is_dir():
             continue
-        for p in base.rglob("*"):
-            if not p.is_file() or p.stat().st_size > 2_000_000 or p.suffix in EVIDENCE_SKIP_SUFFIXES:
+        for p in evidence_files(repo, base):
+            if p.suffix in EVIDENCE_SKIP_SUFFIXES or not p.is_file() or p.stat().st_size > 2_000_000:
                 continue
             if any(part in EVIDENCE_SKIP_DIRS or part.startswith(".") for part in p.relative_to(base).parts[:-1]):
                 continue
@@ -1548,7 +1583,7 @@ def find_evidence(repo: Path, rid: str, cfg: Dict[str, Any], touchpoints: List[s
     out = {"test_files": sorted(hits), "ambiguous_test_files": sorted(ambiguous, key=lambda a: a["path"]),
            "other_feature_test_files": sorted(foreign, key=lambda a: a["path"]), "touchpoints": tp}
     if feature:
-        out["marker"] = feature_marker(repo, feature, rid)
+        out["marker"] = feature_marker(repo, feature, rid) if markers else None
     return out
 
 
@@ -1778,7 +1813,8 @@ def converge_apply(paths: Paths, cfg: Dict[str, Any], verdicts_path: Path, commi
             where = f" — touchpoints: {', '.join(touch)}" if touch else ""
             why = f"; {v.get('justification')}" if v.get("justification") else ""
             statement = str(req.get("statement", "")).rstrip(".")
-            mark = f"; mark its test `{feature_marker(paths.repo, paths.feature.name, rid)}`" if paths.feature else ""
+            mark = (f"; mark its test `{feature_marker(paths.repo, paths.feature.name, rid)}`"
+                    if paths.feature and evidence_markers(cfg) else "")
             lines.append(f"- [ ] T{tid:03d} [{rid}] {what} {rid} ({statement}){where}{mark} [converge: {v.get('verdict')}{why}]")
             appended.append(f"T{tid:03d}")
             tid += 1
@@ -1928,7 +1964,8 @@ def cmd_merge(args: argparse.Namespace) -> int:
             raise SystemExit("threatspec: `remove:` is only valid in a patch; re-run with `merge --patch`")
         existing = load_model(p.model) if p.model.exists() else empty_model(p.feature.name, p.feature.name, cfg.get("profiles") or ["stride"], None)
     profiles = load_profiles((incoming.get("threatspec") or {}).get("profiles") or (existing.get("threatspec") or {}).get("profiles") or cfg.get("profiles") or ["stride"])
-    merged, stats = merge_models(existing, incoming, p, profiles, removed, notes)
+    merged, stats = merge_models(existing, incoming, p, profiles, removed, notes,
+                                 record_sources=not args.patch or args.record_sources)
     baseline = load_baseline(merged, p.model)
     errors = schema_validate(merged) + reference_errors(merged_view(merged, baseline)) + baseline_conflicts(merged, baseline)
     if errors and not args.allow_invalid:
@@ -2094,6 +2131,8 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("validate", help="Validate a model file"); s.add_argument("model"); s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_validate)
     s = sub.add_parser("merge", help="Merge an incoming model into the feature model"); s.add_argument("--incoming", required=True)
     s.add_argument("--patch", action="store_true", help="Incoming is a partial document keyed by id (RFC 7396 per entry, optional `remove:` list)")
+    s.add_argument("--record-sources", action="store_true",
+                   help="With --patch: re-record the spec.md/plan.md hashes (the patch accounts for their edits)")
     s.add_argument("--dry-run", action="store_true"); s.add_argument("--allow-invalid", action="store_true"); s.set_defaults(fn=cmd_merge)
     s = sub.add_parser("rehash", help="Re-record spec.md/plan.md hashes after an edit that left the model valid")
     s.add_argument("--dry-run", action="store_true"); s.set_defaults(fn=cmd_rehash)

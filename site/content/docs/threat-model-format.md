@@ -206,7 +206,7 @@ A full merge differs in three ways: threats missing from the incoming model are 
 
 ## Drift hashes
 
-`threatspec.sources[]` records a SHA-256 per source file. The hash is computed on universal-newline text with trailing newlines trimmed, so a CRLF checkout on Windows produces the same digest as an LF one. For `spec.md` the ThreatSpec-managed block (between `<!-- threatspec:begin -->` and `<!-- threatspec:end -->`) is removed first, so rendering the SR block never counts as drift; any edit outside the markers does. Only `spec.md` and `plan.md` are hashed. `merge` records the hashes; `rehash` re-records them without changing anything else, for an edit that was reviewed and leaves the model valid.
+`threatspec.sources[]` records a SHA-256 per source file. The hash is computed on universal-newline text with trailing newlines trimmed, so a CRLF checkout on Windows produces the same digest as an LF one. For `spec.md` the ThreatSpec-managed block (between `<!-- threatspec:begin -->` and `<!-- threatspec:end -->`) is removed first, so rendering the SR block never counts as drift; any edit outside the markers does. Only `spec.md` and `plan.md` are hashed. A full `merge` records the hashes; `merge --patch` keeps the recorded ones unless given `--record-sources`; `rehash` re-records them without changing anything else, for an edit that was reviewed and leaves the model valid.
 
 ## Determinism
 

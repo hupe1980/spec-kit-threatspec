@@ -4,13 +4,35 @@ All notable changes to the ThreatSpec extension are documented here. The format 
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-20
+
+Field feedback from updating to 0.3.0 and converging two features of a service with a daemon, a database, and web screens.
+
+### Changed
+
+- `merge --patch` keeps the recorded `spec.md`/`plan.md` hashes. A patch that only changed a technique or a touchpoint used to re-record them and silently clear pending C9 drift, which made every patch an implicit `rehash`. `--record-sources` re-records them when the patch is the answer to the edit (the model command passes it for the `--from-plan` pass and for changes derived from a spec edit). When hashes are kept although a source changed, the merge prints a `note:`. A full merge records them as before.
+- `verification.evidence_markers: []` turns marker evidence off instead of falling back to `["SR-"]`: no file is tied to a requirement by marker, `evidence.marker` is `null`, remediation tasks no longer say "mark its test", and the converge and preset tasks prompts find tests from touchpoints and acceptance scenarios. Omitting the key keeps the default.
+- The model command asks every rate-limit, lockout, quota, or throttle requirement to name its key and whom that key can lock out; the check command's S4 pass flags one that does not.
+- The workflow guide recommends running converge as an independent judge, in a session that did not write the code.
+
+### Fixed
+
+- `converge-scan` listed and stat'ed every file under `test_dirs`, including `node_modules`, before filtering, which took minutes on a web project. In a git work tree it now lists files with `git ls-files` and skips whatever a `.gitignore` excludes; elsewhere it prunes skipped and hidden directories while walking.
+- The README's troubleshooting row and the 0.3.0 changelog showed `merge --patch` without the required `--incoming`.
+- The CI example in the workflow guide pinned the action to `v0.2.3`.
+- SARIF output reports tool version `0.3.1`.
+
+### Documentation
+
+- README troubleshooting: updating a `--dev` install (remove, add, restore `threatspec-config.yml` from `.specify/extensions/.backup/threatspec/`), and C9 still pending after a patch.
+
 ## [0.3.0] - 2026-11-19
 
 Field feedback from a full model → plan pass → check → converge cycle on a library project.
 
 ### Added
 
-- `merge --patch`: a partial document keyed by id, so a plan pass or a single correction no longer re-sends the whole model. Each listed entry is merged into the existing one by JSON Merge Patch (RFC 7396): mappings merge, lists and scalars replace, `null` removes a key; an unknown id is added. `threatspec.actors`, `dispositions`, and `exclusions` are upserted by key and `surfaces` are added. Nothing the patch does not name is retired or dropped. A `remove:` list deletes structure entries, mitigations, requirements, and actors, retires threats, and drops `surface:<id>`, `disposition:<technique>`, `exclusion:<entity>`. `verification[]` and `decisions[]` stay append-only. The patched model is validated as a whole; a rejected patch writes nothing.
+- `merge --patch --incoming <file>`: a partial document keyed by id, so a plan pass or a single correction no longer re-sends the whole model. Each listed entry is merged into the existing one by JSON Merge Patch (RFC 7396): mappings merge, lists and scalars replace, `null` removes a key; an unknown id is added. `threatspec.actors`, `dispositions`, and `exclusions` are upserted by key and `surfaces` are added. Nothing the patch does not name is retired or dropped. A `remove:` list deletes structure entries, mitigations, requirements, and actors, retires threats, and drops `surface:<id>`, `disposition:<technique>`, `exclusion:<entity>`. `verification[]` and `decisions[]` stay append-only. The patched model is validated as a whole; a rejected patch writes nothing.
 - `rehash`: re-records the `spec.md`/`plan.md` hashes without touching the model, for a reviewed edit that changes no asset, flow, surface, or trust boundary. `--dry-run` lists what changed. The C9 finding and the check command's S1 pass recommend it; the agent does not run it.
 - `techniques [--profiles a,b] [--format md|json]`: prints each profile's asset types, surfaces, techniques, and mitigation patterns. It needs no feature directory. The model command uses it instead of reading the profile YAML.
 - `stride` profile 0.2: technique `dependency-compromise` (Tampering, surface `third-party-code`, CWE-1357/1395/494/829, OWASP Top 10:2025 A03) with the patterns `dependency-pinning`, `dependency-gate`, `provenance-verification`, and `sbom-monitoring`. Existing models are unaffected until they record the `third-party-code` surface; `coverage` lists the technique as `surface-absent` until then.
